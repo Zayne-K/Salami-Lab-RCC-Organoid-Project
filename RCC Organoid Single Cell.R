@@ -156,13 +156,13 @@ custom2 <- DimPlot(rcc1, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By cell type")
 custom2
 
-cairo_pdf(paste0(setdir,"RCC1_post_harmony.pdf"),width = 22,height = 20)
-print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
-dev.off()
-
-cairo_pdf(paste0(setdir,"RCC1 UMAP cell clusters.pdf"),width = 22,height = 11)
-print(custom1)
-dev.off()
+# cairo_pdf(paste0(setdir,"RCC1_post_harmony.pdf"),width = 22,height = 20)
+# print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
+# dev.off()
+# 
+# cairo_pdf(paste0(setdir,"RCC1 UMAP cell clusters.pdf"),width = 22,height = 11)
+# print(custom1)
+# dev.off()
 
 FeaturePlot(rcc1,
             repel=F,order = T,
@@ -263,13 +263,13 @@ custom2 <- DimPlot(rcc2, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By cell type")
 custom2
 
-cairo_pdf(paste0(setdir,"RCC2_post_harmony.pdf"),width = 22,height = 20)
-print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
-dev.off()
-
-cairo_pdf(paste0("RCC2 UMAP cell clusters.pdf"),width = 22,height = 11)
-print(custom1)
-dev.off()
+# cairo_pdf(paste0(setdir,"RCC2_post_harmony.pdf"),width = 22,height = 20)
+# print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
+# dev.off()
+# 
+# cairo_pdf(paste0("RCC2 UMAP cell clusters.pdf"),width = 22,height = 11)
+# print(custom1)
+# dev.off()
 
 FeaturePlot(rcc2,
             repel=F,order = T,
@@ -370,13 +370,13 @@ custom2 <- DimPlot(rcc3, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By cell type")
 custom2
 
-cairo_pdf(paste0(setdir,"RCC3_post_harmony.pdf"),width = 22,height = 20)
-print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
-dev.off()
-
-cairo_pdf(paste0(setdir,"RCC3 UMAP cell clusters.pdf"),width = 22,height = 11)
-print(custom1)
-dev.off()
+# cairo_pdf(paste0(setdir,"RCC3_post_harmony.pdf"),width = 22,height = 20)
+# print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
+# dev.off()
+# 
+# cairo_pdf(paste0(setdir,"RCC3 UMAP cell clusters.pdf"),width = 22,height = 11)
+# print(custom1)
+# dev.off()
 
 FeaturePlot(rcc3,
             repel=F,order = T,
@@ -542,9 +542,9 @@ rcc.filt <- rcc.filt %>%
 p1n <- DimPlot(object = rcc.filt, reduction = "harmony", pt.size = .1, group.by = "orig.ident")
 p2n <- VlnPlot(object = rcc.filt, features = "harmony_1",group.by = "orig.ident", pt.size = .1)
 
-cairo_pdf(paste0(setdir,"rcc_all_harmony_plots.pdf"),width = 18,height = 13)
-print(ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2))
-dev.off()
+# cairo_pdf(paste0(setdir,"rcc_all_harmony_plots.pdf"),width = 18,height = 13)
+# print(ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2))
+# dev.off()
 
 set.seed(555)
 rcc.filt <- rcc.filt %>% 
@@ -559,9 +559,9 @@ orig.stim <- DimPlot(rcc.filt, reduction = "umap", label = TRUE, repel = TRUE,
                      group.by = 'seurat_clusters',pt.size = 0.5,label.size = 5,order = T) + 
   ggtitle("By seurat clusters")
 
-cairo_pdf(paste0(setdir,"rcc_all_seurat_clusters.pdf"),width = 22,height = 20)
-print(orig.stim)
-dev.off()
+# cairo_pdf(paste0(setdir,"rcc_all_seurat_clusters.pdf"),width = 22,height = 20)
+# print(orig.stim)
+# dev.off()
 
 condition <- DimPlot(rcc.filt, reduction = "umap",pt.size = 0.5,
                      group.by = "orig.ident",label = T,repel = T,
@@ -575,9 +575,9 @@ clusters <- DimPlot(rcc.filt, reduction = "umap",pt.size = 0.5,
   ggtitle("By UMAP Clusters")
 clusters
 
-cairo_pdf(paste0(setdir,"rcc_all_clusters.pdf"),width = 14,height = 11)
-print(ggarrange(condition,clusters,nrow=1))
-dev.off()
+# cairo_pdf(paste0(setdir,"rcc_all_clusters.pdf"),width = 14,height = 11)
+# print(ggarrange(condition,clusters,nrow=1))
+# dev.off()
 
 # Cell type assignment
 # Assign clusters
@@ -618,21 +618,21 @@ custom2
 cowplot::plot_grid(ncol = 2, DimPlot(rcc.filt, group.by = "orig.ident") + NoAxes(),
                    DimPlot(rcc.filt, group.by = "cellassign") + NoAxes())
 
-cairo_pdf(paste0(setdir,"RCC all plots.pdf"),width = 22,height = 20)
-print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
-dev.off()
-
-cairo_pdf(paste0(setdir,"RCC all UMAP cell clusters.pdf"),width = 22,height = 15)
-print(custom1)
-dev.off()
-
-cairo_pdf(paste0(setdir,"RCC all VEGFA CA9.pdf"),width = 30,height = 14)
-print(FeaturePlot(rcc.filt,
-                  repel = T,order = T,
-                  features = c("VEGFA","CA9","EGFR"),
-                  split.by = "orig.ident",
-                  pt.size = 0.3))
-dev.off()
+# cairo_pdf(paste0(setdir,"RCC all plots.pdf"),width = 22,height = 20)
+# print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
+# dev.off()
+# 
+# cairo_pdf(paste0(setdir,"RCC all UMAP cell clusters.pdf"),width = 22,height = 15)
+# print(custom1)
+# dev.off()
+# 
+# cairo_pdf(paste0(setdir,"RCC all VEGFA CA9.pdf"),width = 30,height = 14)
+# print(FeaturePlot(rcc.filt,
+#                   repel = T,order = T,
+#                   features = c("VEGFA","CA9","EGFR"),
+#                   split.by = "orig.ident",
+#                   pt.size = 0.3))
+# dev.off()
 
 rcc.filt@meta.data$stim.new <- paste0(rcc.filt@meta.data$orig.ident)
 rcc.filt@meta.data$stim.new <- gsub("N","",rcc.filt@meta.data$stim.new)
@@ -650,9 +650,9 @@ custom3 <- DimPlot(rcc.filt, reduction = "umap", label = TRUE, repel = TRUE,spli
   ggtitle("By cell type")
 custom3
 
-cairo_pdf(paste0(setdir,"RCC all UMAP cell clusters by tissue type.pdf"),width = 18,height = 9)
-print(custom3)
-dev.off()
+# cairo_pdf(paste0(setdir,"RCC all UMAP cell clusters by tissue type.pdf"),width = 18,height = 9)
+# print(custom3)
+# dev.off()
 
 FeaturePlot(rcc.filt,
             repel = T,order = T,
@@ -885,7 +885,7 @@ library(doBy)
 
 # Set cutoffs
 fdr <- 0.05
-fc <- 1
+fc <- 2
 
 # Normalize data; accounts for sequencing depth
 rcc.norm <- NormalizeData(
@@ -907,12 +907,12 @@ rcc.norm <- JoinLayers(rcc.norm)
 Idents(rcc.norm) <- "orig.ident"
 
 # Hallmark cancer
-hm.sym <- GSA.read.gmt("/home/kzayne/h.all.v7.0.symbols.gmt")    # download all available genesets genesymbols .gmt file from MSigDB
+hm.sym <- GSA.read.gmt("/home/kzayne/Salami-Lab-RCC-Organoid-Project/h.all.v7.4.symbols.gmt.txt")    # download all available genesets genesymbols .gmt file from MSigDB
 names(hm.sym$genesets) <- hm.sym$geneset.names
 hm.sym <- hm.sym$genesets
 
 # Xcell pathways
-xcell.sig <- read.csv("/home/kzayne/XCell_pathways.csv",header = T)
+xcell.sig <- read.csv("/home/kzayne/Salami-Lab-RCC-Organoid-Project/XCell_pathways.csv",header = T)
 xcell <- as.list(as.character(xcell.sig$Genes))
 names(xcell) <- xcell.sig$Celltype_Source_ID
 
@@ -920,10 +920,13 @@ for(i in 1:length(xcell)){
   xcell[[i]] <- unlist(strsplit(xcell[[i]], "," ))
 }
 
+# Subset data for DEA
+rcc.norm.proxTubular <- subset(rcc.norm, subset = cellassign == 'Proximal tubular cell')
+
 # RCC1
 #####
 # Identify DEGs between T1 and Normal
-rcc1.T1vN <- FindMarkers(rcc.norm, ident.1 = "RCC1T1", ident.2 = "RCC1N")
+rcc1.T1vN <- FindMarkers(rcc.norm.proxTubular, ident.1 = "RCC1T1", ident.2 = "RCC1N")
 
 # Create Volcano plot
 topdeg1 <- rcc1.T1vN
