@@ -380,7 +380,7 @@ custom2
 
 FeaturePlot(rcc3,
             repel=F,order = T,
-            features = c("VEGFA","CA9","NCAM1","EPCAM"),
+            features = c("VEGFA","CA9","NCAM1","EPCAM","IFG2BP3"),
             split.by = "orig.ident",pt.size = 0.5)
 
 #####
@@ -656,7 +656,7 @@ custom3
 
 FeaturePlot(rcc.filt,
             repel = T,order = T,
-            features = c("VEGFA","CA9","EGFR"),
+            features = c("VEGFA","CA9","EGFR","IGF2BP3"),
             split.by = "tissue.type",
             cols = c("gray","red"),
             pt.size = 0.5)
@@ -886,6 +886,9 @@ library(doBy)
 # Set cutoffs
 fdr <- 0.05
 fc <- 2
+
+# Create variable for pseudo-bulk sorting
+rcc.filt@meta.data$group <- paste0(rcc.filt@meta.data$orig.ident,"_",rcc.filt@meta.data$cellassign)
 
 # Normalize data; accounts for sequencing depth
 rcc.norm <- NormalizeData(
