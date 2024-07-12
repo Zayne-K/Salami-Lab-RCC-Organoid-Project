@@ -19,6 +19,12 @@ library(sctransform)
 library(harmony)
 library(cowplot)
 library(DoubletFinder)
+library(Cairo)
+library(fgsea)
+library(GSA)
+library(doBy)
+library(EnhancedVolcano)
+library(edgeR)
 # library(metap)
 # library(multtest)
 
@@ -26,7 +32,7 @@ setdir <- "/home/kzayne/Salami-Lab-RCC-Organoid-Project/"
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
 
 ### Cell markers file
-kid.mrkrs <- read.csv("Final kidney markers.csv",header = T)
+kid.mrkrs <- read.csv("Updated Kidney Markers.csv",header = T) #Final kidney markers.csv
 kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
 mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
 names(mrkr.list) <- kid.mrkrs$cell_name
@@ -34,6 +40,23 @@ names(mrkr.list) <- kid.mrkrs$cell_name
 for(i in 1:length(mrkr.list)){
   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
 }
+
+kid.mrkrs1 <- read.csv("Final kidney markers.csv",header = T) #
+kid.mrkrs1 <- kid.mrkrs1[!kid.mrkrs1$cell_name %in% c("Neutrophil","Cancer stem cell"),]
+mrkr.list1 <- as.list(as.character(kid.mrkrs1$Symbol))
+names(mrkr.list1) <- kid.mrkrs1$cell_name
+
+for(i in 1:length(mrkr.list1)){
+  mrkr.list1[[i]] <- unlist(strsplit(mrkr.list1[[i]], "," ))
+}
+
+# mrkr.list1[['Tumor']] = c(mrkr.list1[['Proximal tubule-1']],'NNMT','CA9','KRT19','KRT18')
+
+# Hallmark cancer
+hm.sym <- GSA.read.gmt("/home/kzayne/Salami-Lab-RCC-Organoid-Project/h.all.v7.4.symbols.gmt.txt")    # download all available genesets genesymbols .gmt file from MSigDB
+names(hm.sym$genesets) <- hm.sym$geneset.names
+hm.sym <- hm.sym$genesets
+names(hm.sym) <- gsub('HALLMARK_','',names(hm.sym))
 
 # rcc1.aaron <- readRDS("/mnt/DATA2/ccRCC_ssRNAseq/udager_all.rds")
 
@@ -61,6 +84,32 @@ rcc3t2.data <- Read10X(data.dir = "/avatar_data2/ccRCC_ssRNAseq/RCC3/SI_32603/fi
 rcc3t2 <- CreateSeuratObject(counts = rcc3t2.data,project = "RCC3T2")
 rcc3n.data <- Read10X(data.dir = "/avatar_data2/ccRCC_ssRNAseq/RCC3/SI_32604/filtered_feature_bc_matrix")
 rcc3n <- CreateSeuratObject(counts = rcc3n.data,project = "RCC3N")
+
+rcc3t.org.pre.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC3T_org_nerat_treat/outs/filtered_feature_bc_matrix')
+rcc3t.org.pre <- CreateSeuratObject(counts = rcc3t.org.pre.data, project = 'RCC3T Org PreTreat')
+
+rcc3t.org.post.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC3T_org_nerat_treat_no/outs/filtered_feature_bc_matrix')
+rcc3t.org.post <- CreateSeuratObject(counts = rcc3t.org.post.data, project = 'RCC3T Org PostTreat')
+
+# Load RCC4 datasets
+rcc4t2.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/RCC4/RCC4T2/outs/filtered_feature_bc_matrix')
+rcc4t2 <- CreateSeuratObject(counts = rcc4t2.data, project = 'RCC4T2')
+
+# Load RCC5 datasets
+rcc5n.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5N_tissue/outs/filtered_feature_bc_matrix')
+rcc5n <- CreateSeuratObject(counts = rcc5n.data, project = 'RCC5N')
+
+rcc5t1.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1_tissue/outs/filtered_feature_bc_matrix')
+rcc5t1 <- CreateSeuratObject(counts = rcc5t1.data, project = 'RCC5T1')
+
+rcc5n_org.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5N_org/outs/filtered_feature_bc_matrix')
+rcc5n_org <- CreateSeuratObject(counts = rcc5n_org.data, project = 'RCC5N_org')
+
+rcc5t1t2_org_pre.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1T2_org_nerat_treat_no/outs/filtered_feature_bc_matrix')
+rcc5t1t2_org_preTreat <- CreateSeuratObject(counts = rcc5t1t2_org_pre.data, project = 'RCC5_org Pre_Treat')
+
+rcc5t1t2_org_post.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1T2_org_nerat_treat/outs/filtered_feature_bc_matrix')
+rcc5t1t2_org_postTreat <- CreateSeuratObject(counts = rcc5t1t2_org_post.data, project = 'RCC5_org Post_Treat')
 
 # Combine all seurat objects for RCC1
 #####
@@ -115,10 +164,39 @@ orig.stim
 
 condition <- DimPlot(rcc1, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 5,order=T) + ggtitle("By Tumor Normal")
 condition
-clusters <- DimPlot(rcc1, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+clusters <- DimPlot(rcc1, reduction = "umap",pt.size = 0.5,split.by = 'orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
 clusters
 
 ggarrange(ggarrange(condition,clusters,nrow=1),orig.stim,ncol=1)
+
+# Identify cluster marker genes
+rcc1n.sub <- subset(rcc1,orig.ident == 'RCC1N')
+rcc1t1.sub <- subset(rcc1,orig.ident == 'RCC1T1')
+rcc1t2.sub <- subset(rcc1,orig.ident == 'RCC1T2')
+
+rcc1n.mrkrs <- FindAllMarkers(rcc1n.sub, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+rcc1n.mrkr.table <- rcc1n.mrkrs %>% group_by(cluster) %>% top_n(n = 20, wt = avg_log2FC)
+
+rcc1t1.mrkrs <- FindAllMarkers(rcc1t1.sub, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+rcc1t1.mrkr.table <- rcc1t1.mrkrs %>% group_by(cluster) %>% top_n(n = 20, wt = avg_log2FC)
+
+rcc1t2.mrkrs <- FindAllMarkers(rcc1t2.sub, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+rcc1t2.mrkr.table <- rcc1t2.mrkrs %>% group_by(cluster) %>% top_n(n = 20, wt = avg_log2FC)
+
+# rcc1.mrkrs <-  FindAllMarkers(rcc1, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+# rcc1.mrkr.table <- rcc1.mrkrs %>% group_by(cluster) %>% top_n(n = 20, wt = avg_log2FC)
+
+# Differentiate markers between 9,10,11
+# find all markers distinguishing cluster 5 from clusters 0 and 3
+cluster9.markers <- FindMarkers(rcc1n.sub, ident.1 = 9, ident.2 = c(10, 11), min.pct = 0.25)
+head(cluster9.markers, n = 10)
+tail(cluster9.markers, n = 10)
+
+cluster10.markers <- FindMarkers(rcc1n.sub, ident.1 = 10, ident.2 = c(9, 11), min.pct = 0.25)
+head(cluster9.markers, n = 10)
+
+cluster11.markers <- FindMarkers(rcc1n.sub, ident.1 = 11, ident.2 = c(9, 10), min.pct = 0.25)
+head(cluster9.markers, n = 10)
 
 # Cell type assignment
 # Assign clusters
@@ -142,19 +220,119 @@ for(j in unique(sctype_scores$cluster)){
   cl_type = sctype_scores[sctype_scores$cluster==j,];
   rcc1@meta.data$cellassign[rcc1@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
 }
-rcc1$ca9 <- rcc1@assays$RNA$scale.data['CA9',]
-rcc1$cellassign <- ifelse(rcc1$cellassign == 'Proximal tubular cell' & rcc1$ca9 > 0,'Proximal Tubular cell + CA9',rcc1$cellassign)
+# rcc1$ca9 <- rcc1@assays$RNA$scale.data['CA9',]
+rcc1$cellassign <- ifelse(rcc1$cellassign == 'Tumor' & rcc1$orig.ident == 'RCC1N','Proximal tubule-3',rcc1$cellassign)
 
+# Cluster and Cellassign UMAP
 custom1 <- DimPlot(rcc1, reduction = "umap", label = TRUE, repel = TRUE,
                    split.by = "orig.ident",
                    group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
   ggtitle("By cell type")
 custom1
 
+clusters <- DimPlot(rcc1, reduction = "umap",pt.size = 0.5,split.by = 'orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+clusters
+
 custom2 <- DimPlot(rcc1, reduction = "umap", label = TRUE, repel = TRUE,
                    group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
   ggtitle("By cell type")
 custom2
+
+# Cluster and Cellassign Umap of each subset of RCC1 individually
+DefaultAssay(rcc1n.sub) <- "RNA"
+rcc1n.sub <- ScaleData(rcc1n.sub,verbose = T,features = rownames(rcc1n.sub))
+es.max = sctype_score(scRNAseqData = rcc1n.sub@assays$RNA$scale.data,
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls.rcc1n = do.call("rbind", lapply(unique(rcc1n.sub@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc1n.sub@meta.data[rcc1n.sub@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc1n.sub@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores.rcc1n = cL_resutls.rcc1n %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc1n.sub@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc1n.sub@meta.data$cellassign[rcc1n.sub@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+
+custom1.rcc1n <- DimPlot(rcc1n.sub, reduction = "umap", label = TRUE, repel = TRUE,
+                   split.by = "orig.ident",
+                   group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By cell type")
+# custom1.rcc1n
+
+clusters.rcc1n <- DimPlot(rcc1n.sub, reduction = "umap",pt.size = 0.5,split.by = 'orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+# clusters.rcc1n
+clusters.rcc1n / custom1.rcc1n
+
+#####################
+DefaultAssay(rcc1t1.sub) <- "RNA"
+rcc1t1.sub <- ScaleData(rcc1t1.sub,verbose = T,features = rownames(rcc1t1.sub))
+es.max = sctype_score(scRNAseqData = rcc1t1.sub@assays$RNA$scale.data,
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls.rcc1t1 = do.call("rbind", lapply(unique(rcc1t1.sub@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc1t1.sub@meta.data[rcc1t1.sub@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc1t1.sub@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores.rcc1t1 = cL_resutls.rcc1t1 %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc1t1.sub@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc1t1.sub@meta.data$cellassign[rcc1t1.sub@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+
+custom1.rcc1t1 <- DimPlot(rcc1t1.sub, reduction = "umap", label = TRUE, repel = TRUE,
+                         split.by = "orig.ident",
+                         group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By cell type")
+# custom1.rcc1t1
+
+clusters.rcc1t1 <- DimPlot(rcc1t1.sub, reduction = "umap",pt.size = 0.5,split.by = 'orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+# clusters.rcc1t1
+clusters.rcc1t1 / custom1.rcc1t1
+
+#####################
+DefaultAssay(rcc1t2.sub) <- "RNA"
+rcc1t2.sub <- ScaleData(rcc1t2.sub,verbose = T,features = rownames(rcc1t2.sub))
+es.max = sctype_score(scRNAseqData = rcc1t2.sub@assays$RNA$scale.data,
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls.rcc1t2 = do.call("rbind", lapply(unique(rcc1t2.sub@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc1t2.sub@meta.data[rcc1t2.sub@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc1t2.sub@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores.rcc1t2 = cL_resutls.rcc1t2 %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc1t2.sub@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc1t2.sub@meta.data$cellassign[rcc1t2.sub@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+
+custom1.rcc1t2 <- DimPlot(rcc1t2.sub, reduction = "umap", label = TRUE, repel = TRUE,
+                          split.by = "orig.ident",
+                          group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By cell type")
+# custom1.rcc1t2
+
+clusters.rcc1t2 <- DimPlot(rcc1t2.sub, reduction = "umap",pt.size = 0.5,split.by = 'orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+# clusters.rcc1t2
+clusters.rcc1t2 / custom1.rcc1t2
+
+# Normalize data
+rcc1.norm <- NormalizeData(rcc1)
 
 # cairo_pdf(paste0(setdir,"RCC1_post_harmony.pdf"),width = 22,height = 20)
 # print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
@@ -166,7 +344,7 @@ custom2
 
 FeaturePlot(rcc1,
             repel=F,order = T,
-            features = c("VEGFA","CA9","NCAM1","EPCAM"),
+            features = c("NNMT","CA9","KRT18","IGF2BP3"),
             split.by = "orig.ident",pt.size = 0.5)
 #####
 
@@ -258,6 +436,9 @@ custom1 <- DimPlot(rcc2, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By cell type")
 custom1
 
+clusters <- DimPlot(rcc2, reduction = "umap",pt.size = 0.5,split.by = 'orig.ident', group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+clusters
+
 custom2 <- DimPlot(rcc2, reduction = "umap", label = TRUE, repel = TRUE,
                    group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
   ggtitle("By cell type")
@@ -271,16 +452,16 @@ custom2
 # print(custom1)
 # dev.off()
 
-FeaturePlot(rcc2,
+rcc2.features <- FeaturePlot(rcc2,
             repel=F,order = T,
-            features = c("VEGFA","CA9","NCAM1","EPCAM"),
+            features = c("NNMT","CA9","KRT18","IGF2BP3"),
             split.by = "orig.ident",pt.size = 0.5)
 #####
 
 # Combine all seurat objects for RCC3
 #####
 set.seed(555)
-rcc3 <- merge(rcc3n, y = c(rcc3t1,rcc3t2), add.cell.ids = c("RCC3N", "RCC3T1", "RCC3T2")) %>%
+rcc3 <- merge(rcc3n, y = c(rcc3t1,rcc3t2,rcc3t.org.pre,rcc3t.org.post), add.cell.ids = c("RCC3N", "RCC3T1", "RCC3T2","RCC3T Org PreTreat","RCC3T Org PostTreat")) %>%
   Seurat::NormalizeData(verbose = FALSE) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -304,6 +485,13 @@ p1o <- DimPlot(object = rcc3, reduction = "pca", pt.size = .1, group.by = "orig.
 p2o <- VlnPlot(object = rcc3, features = "PC_1", group.by = "orig.ident", pt.size = .1)
 p1o | p2o
 
+# Filter out cells of poor qc
+# rcc3
+# rcc3 <- subset(rcc3,
+#                subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+# rcc3
+
+# Run Harmony
 set.seed(555)
 rcc3 <- rcc3 %>%
   RunHarmony("orig.ident", plot_convergence = TRUE)
@@ -359,11 +547,17 @@ for(j in unique(sctype_scores$cluster)){
 rcc3$ca9 <- rcc3@assays$RNA$scale.data['CA9',]
 rcc3$cellassign <- ifelse(rcc3$cellassign == 'Proximal tubular cell' & rcc3$ca9 > 0,'Proximal Tubular cell + CA9',rcc3$cellassign)
 
+rcc3$orig.ident <- factor(rcc3$orig.ident,
+                          levels = c('RCC3N','RCC3T1','RCC3T2','RCC3T Org PreTreat','RCC3T Org PostTreat'))
+
 custom1 <- DimPlot(rcc3, reduction = "umap", label = TRUE, repel = TRUE,
                    split.by = "orig.ident",
                    group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
   ggtitle("By cell type")
 custom1
+
+clusters <- DimPlot(rcc3, reduction = "umap",pt.size = 0.5,split.by='orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+
 
 custom2 <- DimPlot(rcc3, reduction = "umap", label = TRUE, repel = TRUE,
                    group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
@@ -378,18 +572,881 @@ custom2
 # print(custom1)
 # dev.off()
 
-FeaturePlot(rcc3,
+rcc3.features <- FeaturePlot(rcc3,
             repel=F,order = T,
-            features = c("VEGFA","CA9","NCAM1","EPCAM","IFG2BP3"),
+            features = c("NNMT","CA9",'KRT18','IGF2BP3'),#"NCAM1","EPCAM","IFG2BP3"),
             split.by = "orig.ident",pt.size = 0.5)
 
+
+# FindMarkers
+rcc3.join <- JoinLayers(rcc3, verbose = F)
+rcc3.all.mrkrs <- FindAllMarkers(rcc3.join,
+                                 min.pct = 0.25,
+                                 min.diff.pct = 0.25,
+                                 verbose = F)
+
+# subset to organoids
+rcc3.org <- subset(rcc3, subset = orig.ident %in% c('RCC3T Org PreTreat','RCC3T Org PostTreat'))
+rcc3.org@meta.data$orig.cluster <- paste0(rcc3.org@meta.data$orig.ident,"_",rcc3.org@meta.data$seurat_clusters)
+rcc3.org@meta.data$orig.cell <- paste0(rcc3.org@meta.data$orig.ident,"_",rcc3.org@meta.data$cellassign)
+rcc3.org.join <- JoinLayers(rcc3.org, verbose = F)
+
+# Find markers between Pre and Post cluster 7
+pre_post.c7 <- FindMarkers(rcc3.org.join,
+                           group.by = 'orig.cluster',
+                           ident.1 = 'RCC3T Org PostTreat_7',
+                           ident.2 = 'RCC3T Org PreTreat_7',
+                           min.pct = 0.25,
+                           min.diff.pct = 0.25,
+                           verbose = F)
+pre_post.c7$genes <- rownames(pre_post.c7)
+
+EnhancedVolcano(pre_post.c7,
+                lab = rownames(pre_post.c7),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Pre-Treated <--Log2FC--> Up in Post-Treated',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 7 cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.c7 <- pre_post.c7 %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.c7$avg_log2FC
+names(fold_changes) <- pre_post.c7$genes
+pre_post.c7.gsea <- fgsea(pathways = hm.sym,
+                             stats = fold_changes,
+                             eps = 0.0,
+                             minSize = 15,
+                             maxSize = 500)
+pre_post.c7.gsea$comp <- 'Cellassign Cluster 7 Post v Pre'
+
+# Find markers between Pre and Post cluster 1
+pre_post.c1.rcc3 <- FindMarkers(rcc3.org.join,
+                           group.by = 'orig.cluster',
+                           ident.1 = 'RCC3T Org PostTreat_1',
+                           ident.2 = 'RCC3T Org PreTreat_1',
+                           min.pct = 0.25,
+                           min.diff.pct = 0.25,
+                           verbose = F)
+pre_post.c1.rcc3$genes <- rownames(pre_post.c1.rcc3)
+
+EnhancedVolcano(pre_post.c1.rcc3,
+                lab = rownames(pre_post.c1.rcc3),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Pre-Treated <--Log2FC--> Up in Post-Treated',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 1 cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.c1.rcc3 <- pre_post.c1.rcc3 %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.c1.rcc3$avg_log2FC
+names(fold_changes) <- pre_post.c1.rcc3$genes
+pre_post.c1.gsea <- fgsea(pathways = hm.sym,
+                          stats = fold_changes,
+                          eps = 0.0,
+                          minSize = 15,
+                          maxSize = 500)
+pre_post.c1.gsea$comp <- 'Cellassign Cluster 1 Post v Pre'
+
+# Find markers between Pre and Post cluster 11
+pre_post.c11.rcc3 <- FindMarkers(rcc3.org.join,
+                                group.by = 'orig.cluster',
+                                ident.1 = 'RCC3T Org PostTreat_11',
+                                ident.2 = 'RCC3T Org PreTreat_11',
+                                min.pct = 0.25,
+                                min.diff.pct = 0.25,
+                                verbose = F)
+pre_post.c11.rcc3$genes <- rownames(pre_post.c11.rcc3)
+
+EnhancedVolcano(pre_post.c11.rcc3,
+                lab = rownames(pre_post.c11.rcc3),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Pre-Treated <--Log2FC--> Up in Post-Treated',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 11 cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.c11.rcc3 <- pre_post.c11.rcc3 %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.c11.rcc3$avg_log2FC
+names(fold_changes) <- pre_post.c11.rcc3$genes
+pre_post.c11.gsea <- fgsea(pathways = hm.sym,
+                          stats = fold_changes,
+                          eps = 0.0,
+                          minSize = 15,
+                          maxSize = 500)
+pre_post.c11.gsea$comp <- 'Cellassign Cluster 11 Post v Pre'
+
+############## Fgseplots combined - bubbleplot
+tops <- rbind(pre_post.c7.gsea,pre_post.c1.gsea,pre_post.c11.gsea)
+tops <- tops[tops$padj < 0.05,]
+tops <- tops[,c(1:7,9)]
+tops <- tops[!grepl("HALLMARK",tops$pathway),]
+tops$pathway <- gsub("HALLMARK_","",tops$pathway)
+tops$pathway <- gsub("_"," ",tops$pathway)
+tops <- tops[!grepl("ESTROGEN",tops$pathway),]
+tops <- tops[order(tops$padj,decreasing = F),]
+tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
+
+tops$comp <- factor(tops$comp)
+
+tops$NES <- as.numeric(round(tops$NES,digits=2))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Enriched in Post",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Enriched in Pre","Not significant")),
+                         levels = c("Enriched in Post", "Enriched in Pre","Not significant"))
+tops <- tops[!tops$Direction=="Not significant",]
+tops$absNES <- abs(tops$NES)
+
+# ggplot Volcano plots plus hallmark plot
+fill <- c("red","#3182bd")
+
+g1 <- ggplot(tops, aes(x = comp, y = pathway, size = absNES, fill = Direction)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  scale_fill_manual(values =fill) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.text=element_text(size=10,colour = "black")) + scale_y_discrete(limits = rev(levels(factor(tops$pathway)))) +
+  scale_size(range = c(3,8),breaks = c(1,1.5,2)) +
+  
+  # ggtitle("edgeR common DEGs") +
+  xlab("")+ylab("")+theme_bw() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x.top = element_text(angle = 45, vjust = 0, hjust = 0,face="bold",size=10,colour = "black")) +
+  theme(axis.text.y = element_text(size =  10,colour = "black")) +
+  theme(axis.text=element_text(size=20), legend.text=element_text(size=12))+
+  guides(size=guide_legend(title="Normalized Enrichment Score (NES)", title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) +
+  guides(fill=guide_legend(title="Direction", override.aes = list(size=10), title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) #+ coord_equal(2/6)
+g1
+
 #####
 
-# Combine all seurat objects for RCC1 RCC2 RCC3
+# Combine all seurat objects for RCC4
 #####
 set.seed(555)
-rcc.all <- merge(rcc1n, y = c(rcc1t1,rcc1t2,rcc2n,rcc2t1,rcc2t2,rcc3n,rcc3t1,rcc3t2),
-                 add.cell.ids = c("RCC1N","RCC1T1","RCC1T2","RCC2N","RCC2T1","RCC2T2","RCC3N","RCC3T1","RCC3T2")) %>%
+# rcc4 <- merge(rcc4n, y = c(rcc4t1,rcc4t2), add.cell.ids = c("RCC4N", "RCC4T1", "RCC4T2")) %>%
+#   Seurat::NormalizeData(verbose = FALSE) %>%
+#   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+#   ScaleData(verbose = FALSE) %>%
+#   RunPCA(pc.genes = rcc4@var.genes, npcs = 20, verbose = FALSE)
+rcc4 <- NormalizeData(rcc4t2,verbose = F) %>%
+  FindVariableFeatures(selection.method = 'vst', nfeatures = 2000) %>%
+  ScaleData(verbose = F) %>%
+  RunPCA(pc.genes = rcc4@var.genes, npcs = 20, verbose = F)
+
+rcc4[["percent.mt"]] <- PercentageFeatureSet(rcc4, pattern = "^MT-")
+table(rcc4$orig.ident)
+
+# Violin plots
+VlnPlot(rcc4, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Scatter plots
+plot1 <- FeatureScatter(rcc4, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot1
+
+# Scatter plots
+plot2 <- FeatureScatter(rcc4, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot2
+
+p1o <- DimPlot(object = rcc4, reduction = "pca", pt.size = .1, group.by = "orig.ident")
+p2o <- VlnPlot(object = rcc4, features = "PC_1", group.by = "orig.ident", pt.size = .1)
+p1o | p2o
+
+# set.seed(555)
+# rcc4 <- rcc4 %>%
+#   RunHarmony("orig.ident", plot_convergence = TRUE)
+# 
+# p1n <- DimPlot(object = rcc4, reduction = "harmony", pt.size = .1, group.by = "orig.ident")
+# p2n <- VlnPlot(object = rcc4, features = "harmony_1",group.by = "orig.ident", pt.size = .1)
+# 
+# ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2)
+
+set.seed(555)
+rcc4 <- rcc4 %>%
+  RunUMAP(reduction = "pca", dims = 1:20) %>% # harmony
+  FindNeighbors(reduction = "pca", dims = 1:20) %>% # harmony
+  FindClusters(resolution = 0.5) %>%
+  identity()
+
+# Visualization
+orig.stim <- DimPlot(rcc4, reduction = "umap", label = TRUE, repel = TRUE,
+                     split.by = "orig.ident",
+                     group.by = 'seurat_clusters',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By seurat clusters")
+orig.stim
+
+# condition <- DimPlot(rcc4, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 5,order=T) + ggtitle("By Tumor Normal")
+# condition
+clusters <- DimPlot(rcc4, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+clusters
+
+ggarrange(ggarrange(condition,clusters,nrow=1),orig.stim,ncol=1)
+
+# Cell type assignment
+# Assign clusters
+# get cell-type by cell matrix
+DefaultAssay(rcc4) <- "RNA"
+rcc4 <- ScaleData(rcc4,verbose = T,features = rownames(rcc4))
+es.max = sctype_score(scRNAseqData = rcc4@assays$RNA$scale.data,
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls = do.call("rbind", lapply(unique(rcc4@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc4@meta.data[rcc4@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc4@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc4@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc4@meta.data$cellassign[rcc4@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+rcc4$ca9 <- rcc4@assays$RNA$scale.data['CA9',]
+rcc4$cellassign <- ifelse(rcc4$cellassign == 'Proximal tubular cell' & rcc4$ca9 > 0,'Proximal Tubular cell + CA9',rcc4$cellassign)
+
+custom1 <- DimPlot(rcc4, reduction = "umap", label = TRUE, repel = TRUE,
+                   split.by = "orig.ident",
+                   group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By cell type")
+custom1
+
+clusters <- DimPlot(rcc4, reduction = "umap",pt.size = 0.5,split.by='orig.ident',group.by = "seurat_clusters",label = T,repel = T,label.size = 5,order=T) + ggtitle("By UMAP Clusters")
+
+
+custom2 <- DimPlot(rcc4, reduction = "umap", label = TRUE, repel = TRUE,
+                   group.by = 'cellassign',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By cell type")
+custom2
+
+# cairo_pdf(paste0(setdir,"RCC4_post_harmony.pdf"),width = 22,height = 20)
+# print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
+# dev.off()
+# 
+# cairo_pdf(paste0(setdir,"RCC4 UMAP cell clusters.pdf"),width = 22,height = 11)
+# print(custom1)
+# dev.off()
+
+rcc4.features <- FeaturePlot(rcc4,
+                             repel=F,order = T,
+                             features = c("CA9",'KIT','RHCG','LINC01187','FOXI1'),#"NCAM1","EPCAM","IFG2BP3"),
+                             split.by = "orig.ident",pt.size = 0.5)
+
+#####
+
+################################## RCC5
+# Perform QC, Filtering, and Doublet finder on RCC5 samples
+rcc5n[['percent.mt']] <- PercentageFeatureSet(rcc5n, pattern = '^MT-')
+rcc5t1[['percent.mt']] <- PercentageFeatureSet(rcc5t1, pattern = '^MT-')
+rcc5n_org[['percent.mt']] <- PercentageFeatureSet(rcc5n_org, pattern = '^MT-')
+rcc5t1t2_org_preTreat[['percent.mt']] <- PercentageFeatureSet(rcc5t1t2_org_preTreat, pattern = '^MT-')
+rcc5t1t2_org_postTreat[['percent.mt']] <- PercentageFeatureSet(rcc5t1t2_org_postTreat, pattern = '^MT-')
+
+rcc5n <- subset(rcc5n,
+                subset = nCount_RNA > 800 &
+                  nFeature_RNA > 500 &
+                  percent.mt < 10)
+rcc5t1 <- subset(rcc5t1,
+                subset = nCount_RNA > 800 &
+                  nFeature_RNA > 500 &
+                  percent.mt < 10)
+rcc5n_org <- subset(rcc5n_org,
+                subset = nCount_RNA > 800 &
+                  nFeature_RNA > 500 &
+                  percent.mt < 10)
+rcc5t1t2_org_preTreat <- subset(rcc5t1t2_org_preTreat,
+                subset = nCount_RNA > 800 &
+                  nFeature_RNA > 500 &
+                  percent.mt < 10)
+rcc5t1t2_org_postTreat <- subset(rcc5t1t2_org_postTreat,
+                subset = nCount_RNA > 800 &
+                  nFeature_RNA > 500 &
+                  percent.mt < 10)
+
+# Combine all seurat objects for RCC5
+#####
+set.seed(555)
+rcc5 <- merge(rcc5n_org, y = c(rcc5n,rcc5t1,  rcc5t1t2_org_preTreat, rcc5t1t2_org_postTreat),
+              add.cell.ids = c("RCC5N_org", "RCC5N", "RCC5T1", "RCC5_org Pre_Treat","RCC5_org Post_Treat"))
+rcc5 <- SCTransform(rcc5, vars.to.regress = 'percent.mt', verbose = F) 
+  # Seurat::NormalizeData(verbose = FALSE, normalization.method = 'LogNormalize', scale.factor = 10000) %>%
+# rcc5 <- VariableFeatures(rcc5,selection.method = "vst") 
+# rcc5 <- ScaleData(rcc5, verbose = FALSE, vars.to.regress = 'percent.mt') 
+rcc5 <- RunPCA(rcc5, verbose = FALSE) #  pc.genes = rcc5@var.genes, npcs = 20,
+rcc5 <- RunUMAP(rcc5, dims = 1:20, verbose = F)
+rcc5 <- FindNeighbors(rcc5, dims = 1:20, verbose = F)
+rcc5 <- FindClusters(rcc5, verbose = F)
+DimPlot(rcc5, group.by = 'seurat_clusters', split.by = 'orig.ident', label = T)
+
+table(rcc5$orig.ident)
+
+rcc5$orig.ident <- factor(rcc5$orig.ident,
+                          levels = c('RCC5N_org','RCC5N','RCC5T1','RCC5_org Pre_Treat','RCC5_org Post_Treat'))
+
+# Violin plots
+violingPre <- VlnPlot(rcc5, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Scatter plots
+plot1 <- FeatureScatter(rcc5, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot1
+
+# Scatter plots
+plot2 <- FeatureScatter(rcc5, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot2
+
+p1o <- DimPlot(object = rcc5, reduction = "pca", pt.size = .1, group.by = "orig.ident")
+p2o <- VlnPlot(object = rcc5, features = "PC_1", group.by = "orig.ident", pt.size = .1)
+p1o | p2o
+
+set.seed(555)
+rcc5 <- rcc5 %>%
+  RunHarmony("orig.ident", plot_convergence = F,assay.use = 'SCT')
+
+p1n <- DimPlot(object = rcc5, reduction = "harmony", pt.size = .1, group.by = "orig.ident")
+p2n <- VlnPlot(object = rcc5, features = "harmony_1",group.by = "orig.ident", pt.size = .1)
+
+qcPlots <- ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2)
+ElbowPlot(rcc5)
+
+set.seed(555)
+rcc5 <- rcc5 %>% 
+  FindNeighbors(reduction = "harmony", dims = 1:20) %>% # pca
+  FindClusters(resolution = 0.5) %>%
+  RunUMAP(reduction = "harmony", dims = 1:20) %>% # pca
+  identity()
+rcc5$orig.ident <- factor(rcc5$orig.ident,
+                          levels = c('RCC5N_org','RCC5N','RCC5T1','RCC5_org Pre_Treat','RCC5_org Post_Treat'))
+
+# Run doublet finder
+#####
+suppressMessages(require(DoubletFinder))
+rcc5.split <- SplitObject(rcc5,split.by='orig.ident')
+
+for (i in 1:length(rcc5.split)) {
+  # print the sample we are on
+  print(paste0("Sample ",i))
+
+  # Pre-process seurat object with standard seurat workflow
+  rcc.filt.sample <- NormalizeData(rcc5.split[[i]])
+  rcc.filt.sample <- FindVariableFeatures(rcc.filt.sample)
+  rcc.filt.sample <- ScaleData(rcc.filt.sample)
+  rcc.filt.sample <- RunPCA(rcc.filt.sample, nfeatures.print = 10)
+
+  # Find significant PCs
+  stdv <- rcc.filt.sample[["pca"]]@stdev
+  sum.stdv <- sum(rcc.filt.sample[["pca"]]@stdev)
+  percent.stdv <- (stdv / sum.stdv) * 100
+  cumulative <- cumsum(percent.stdv)
+  co1 <- which(cumulative > 90 & percent.stdv < 5)[1]
+  co2 <- sort(which((percent.stdv[1:length(percent.stdv) - 1] -
+                       percent.stdv[2:length(percent.stdv)]) > 0.1),
+              decreasing = T)[1] + 1
+  min.pc <- min(co1, co2)
+  min.pc
+
+  # finish pre-processing
+  rcc.filt.sample <- RunUMAP(rcc.filt.sample, dims = 1:min.pc)
+  rcc.filt.sample <- FindNeighbors(object = rcc.filt.sample, dims = 1:min.pc)
+  rcc.filt.sample <- FindClusters(object = rcc.filt.sample, resolution = 0.1)
+
+  # pK identification (no ground-truth)
+  sweep.list <- paramSweep(rcc.filt.sample, PCs = 1:min.pc, num.cores = detectCores() - 1)
+  sweep.stats <- summarizeSweep(sweep.list)
+  bcmvn <- find.pK(sweep.stats)
+
+  # Optimal pK is the max of the bomodality coefficent (BCmvn) distribution
+  bcmvn.max <- bcmvn[which.max(bcmvn$BCmetric),]
+  optimal.pk <- bcmvn.max$pK
+  optimal.pk <- as.numeric(levels(optimal.pk))[optimal.pk]
+
+  ## Homotypic doublet proportion estimate
+  annotations <- rcc.filt.sample@meta.data$seurat_clusters
+  homotypic.prop <- modelHomotypic(annotations)
+  nExp.poi <- round(optimal.pk * nrow(rcc.filt.sample@meta.data)) ## Assuming 7.5% doublet formation rate - tailor for your dataset
+  nExp.poi.adj <- round(nExp.poi * (1 - homotypic.prop))
+
+  # run DoubletFinder
+  rcc.filt.sample <- doubletFinder(seu = rcc.filt.sample,
+                                   PCs = 1:min.pc,
+                                   pK = optimal.pk,
+                                   nExp = nExp.poi.adj)
+  metadata <- rcc.filt.sample@meta.data
+  colnames(metadata)[ncol(metadata)] <- "doublet_finder" #ncol matches number of 'orig.ident' for this group
+  rcc.filt.sample@meta.data <- metadata
+
+  # # subset and save
+  # rcc.filt.singlets <- subset(rcc.filt.sample, doublet_finder == "Singlet")
+  # rcc.filt.split[[i]] <- rcc.filt.singlets
+  # remove(rcc.filt.singlets)
+  rcc5.split[[i]] <- rcc.filt.sample
+}
+
+rcc5.DF.all <- merge(x = rcc5.split[[1]],
+                    y = c(rcc5.split[[2]], rcc5.split[[3]], rcc5.split[[4]],
+                          rcc5.split[[5]]),
+                    project = "RCC5",
+                    merge.data = T)
+rcc5.DF.all
+rcc5.DF.join <- JoinLayers(rcc5.DF.all)
+rcc5.DF.join <- RunPCA(rcc5.DF.join)
+rcc5.DF.join <- RunUMAP(rcc5.DF.join, dims = 1:10, verbose = F)
+
+DF.name = colnames(rcc5.DF.join@meta.data)[grepl("doublet_finder", colnames(rcc5.DF.join@meta.data))]
+
+cowplot::plot_grid(ncol = 2, DimPlot(rcc5.DF.join, group.by = "orig.ident") + NoAxes(),
+                   DimPlot(rcc5.DF.join, group.by = DF.name) + NoAxes())
+
+VlnPlot(rcc5.DF.all, features = "nFeature_RNA", group.by = DF.name, pt.size = 0.1)
+
+rcc5.filt = rcc5.DF.join[,rcc5.DF.join@meta.data$doublet_finder == "Singlet"]
+dim(rcc5.filt)
+#####
+
+rcc5.filt$orig.ident <- factor(rcc5.filt$orig.ident,
+                          levels = c('RCC5N_org','RCC5N','RCC5T1','RCC5_org Pre_Treat','RCC5_org Post_Treat'))
+
+
+# Violin plots
+VlnPlot(rcc5.filt, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Scatter plots
+plot1 <- FeatureScatter(rcc5.filt, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot1
+
+# Scatter plots
+plot2 <- FeatureScatter(rcc5.filt, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot2
+
+violinPost <- VlnPlot(rcc5.filt, features = c('nCount_RNA','nFeature_RNA','percent.mt'),group.by = 'orig.ident',pt.size = 0.1)
+
+p1o <- DimPlot(object = rcc5.filt, reduction = "pca", pt.size = .1, group.by = "orig.ident")
+p2o <- VlnPlot(object = rcc5.filt, features = "PC_1", group.by = "orig.ident", pt.size = .1)
+p1o | p2o
+
+set.seed(555)
+rcc5.filt <- rcc5.filt %>%
+  RunHarmony("orig.ident", plot_convergence = TRUE)
+
+p1n <- DimPlot(object = rcc5.filt, reduction = "harmony", pt.size = .1, group.by = "orig.ident")
+p2n <- VlnPlot(object = rcc5.filt, features = "harmony_1",group.by = "orig.ident", pt.size = .1)
+
+qcPlots.postFilter <- ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2)
+ElbowPlot(rcc5.filt)
+
+# Visualization
+orig.stim <- DimPlot(rcc5.filt, reduction = "umap", label = TRUE, repel = TRUE,
+                     split.by = "orig.ident",
+                     group.by = 'seurat_clusters',pt.size = 0.5,label.size = 5,order = T) +
+  ggtitle("By seurat clusters")
+orig.stim
+
+# NNMT Feature plot
+cancer.features <- FeaturePlot(rcc5.filt,
+                    features = c('NDUFA4L2','CA9','VEGFA','EGFR'),
+                    reduction = 'umap',
+                    label = T,
+                    repel = T,
+                    order = T,
+                    split.by = 'orig.ident')
+cancer.features
+
+condition <- DimPlot(rcc5.filt, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
+condition
+clusters <- DimPlot(rcc5.filt, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 3,order=T) + ggtitle("By UMAP Clusters")
+clusters
+
+ggarrange(ggarrange(condition,clusters,nrow=1),orig.stim,ncol=1)
+
+# Cell type assignment
+# Assign clusters
+# get cell-type by cell matrix
+DefaultAssay(rcc5) <- "SCT"
+rcc5 <- ScaleData(rcc5,verbose = T,features = rownames(rcc5))
+es.max = sctype_score(scRNAseqData = rcc5@assays$SCT$scale.data,
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls = do.call("rbind", lapply(unique(rcc5@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc5@meta.data[rcc5@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc5@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc5@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc5@meta.data$cellassign[rcc5@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+# rcc5$ca9 <- rcc5@assays$RNA$scale.data['CA9',]
+# rcc5$cellassign <- ifelse(rcc5$cellassign == 'Proximal tubular cell' & rcc5$ca9 > 0,'Proximal Tubular cell + CA9',rcc5$cellassign)
+
+custom1 <- DimPlot(rcc5, reduction = "umap", label = TRUE, repel = TRUE,
+                   split.by = "orig.ident",
+                   group.by = 'cellassign',pt.size = 0.5,label.size = 3,order = T) +
+  ggtitle("Cellassign")
+custom1
+
+clusters <- DimPlot(rcc5,
+                    reduction = "umap",
+                    pt.size = 0.5,
+                    split.by='orig.ident',
+                    group.by = "seurat_clusters",
+                    label = T,
+                    repel = T,
+                    label.size = 3,
+                    order=T) + 
+  ggtitle("By UMAP Clusters")
+
+rcc5 <- PrepSCTFindMarkers(rcc5,verbose = F)
+rcc5.tissue.c2.mrkrs <- FindMarkers(rcc5,
+                                    group.by = 'ident_cluster',
+                                    ident.1 = 'RCC5T1_2',
+                                    ident.2 = 'RCC5N_2',
+                                    min.pct=0.25,
+                                    min.diff.pct=0.25,
+                                    verbose=F)
+rcc5.tissue.c2.mrkrs$genes <- rownames(rcc5.tissue.c2.mrkrs)
+
+pt <- table(rcc5$cellassign, rcc5$orig.ident)
+pt <- as.data.frame(pt)
+pt$Var1 <- as.character(pt$Var1)
+
+colourCount = length(unique(rcc5$cellassign))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+
+ggplot(pt, aes(x = Var2, y = Freq, fill = Var1)) +
+  theme_bw(base_size = 15) +
+  geom_col(position = "fill", width = 0.5) +
+  xlab("Sample") +
+  ylab("Proportion") +
+  scale_fill_manual(values = getPalette(colourCount)) +
+  theme(legend.title = element_blank()) +
+  ggtitle('RCC5 Percent Cellassign Composition of Samples')
+
+# custom2 <- DimPlot(rcc5.filt, reduction = "umap", label = TRUE, repel = TRUE,
+#                    split.by = 'orig.ident',
+#                    group.by = 'cellassign1',pt.size = 0.5,label.size = 3,order = T) +
+#   ggtitle("Cellassign2")
+# custom2
+
+# cairo_pdf(paste0(setdir,"RCC5_post_harmony.pdf"),width = 22,height = 20)
+# print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
+# dev.off()
+# 
+# cairo_pdf(paste0(setdir,"RCC5 UMAP cell clusters.pdf"),width = 22,height = 11)
+# print(custom1)
+# dev.off()
+
+rcc5.filt.features <- FeaturePlot(rcc5.filt,
+                             repel=F,order = T,
+                             features = c("EGFR",'CA9'),#"NCAM1","EPCAM","IFG2BP3"),
+                             split.by = "orig.ident",pt.size = 0.5)
+
+# Find markers
+rcc5.filt.join <- JoinLayers(rcc5.filt)
+rcc5.filt.mrkrs <- FindAllMarkers(rcc5.filt.join,
+                             min.pct = 0.25,
+                             min.diff.pct = 0.25,
+                             verbose = F)
+
+# library(multtest)
+# library(metap)
+# rcc5.filt.conserved.markers <- data.frame()
+# for(cluster in unique(rcc5.filt@meta.data$seurat_clusters)){
+#   mrkr.table <- FindConservedMarkers(rcc5.filt.join,
+#                                      ident.1 = cluster,
+#                                      grouping.var = 'orig.ident',
+#                                      verbose = F)
+#   rcc5.filt.conserved.markers <- rbind(rcc5.filt.conserved.markers,mrkr.table)
+# }
+
+### DEG and GSEA of the Pre and Post treated organoids
+rcc5.filt.org <-subset(rcc5.filt, subset = orig.ident %in% c('RCC5_org Post_Treat','RCC5_org Pre_Treat'))
+rcc5.filt.org@meta.data$ident_cluster <- paste0(rcc5.filt.org@meta.data$orig.ident,"_",rcc5.filt.org@meta.data$seurat_clusters)
+rcc5.filt.org@meta.data$ident_cell <- paste0(rcc5.filt.org@meta.data$orig.ident,'_',rcc5.filt.org@meta.data$cellassign)
+rcc5.filt.org.join <- JoinLayers(rcc5.filt.org)
+
+# Tumor of Post vs Pre-treated
+pre_post.tumor.mrkrs <- FindMarkers(rcc5.filt.org.join,
+                                  group.by = 'ident_cell',
+                                  ident.1 = 'RCC5_org Post_Treat_Tumor',
+                                  ident.2 = 'RCC5_org Pre_Treat_Tumor',
+                                  min.pct = 0.25,
+                                  min.diff.pct = 0.25,
+                                  verbose = F)
+pre_post.tumor.mrkrs$genes <- rownames(pre_post.tumor.mrkrs)
+
+EnhancedVolcano(pre_post.tumor.mrkrs,
+                lab = rownames(pre_post.tumor.mrkrs),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Pre-Treated <--Log2FC--> Up in Post-Treated',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Tumor cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.tumor.mrkrs <- pre_post.tumor.mrkrs %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.tumor.mrkrs$avg_log2FC
+names(fold_changes) <- pre_post.tumor.mrkrs$genes
+pre_post.tumor.gsea <- fgsea(pathways = hm.sym,
+                             stats = fold_changes,
+                             eps = 0.0,
+                             minSize = 15,
+                             maxSize = 500)
+pre_post.tumor.gsea$comp <- 'Cellassign Tumor Post v Pre'
+
+# Pre Post cluster 0
+pre_post.c0.mrkrs <- FindMarkers(rcc5.filt.org.join,
+                                    group.by = 'ident_cluster',
+                                    ident.1 = 'RCC5_org Post_Treat_0',
+                                    ident.2 = 'RCC5_org Pre_Treat_0',
+                                    min.pct = 0.25,
+                                    min.diff.pct = 0.25,
+                                    verbose = F)
+pre_post.c0.mrkrs$genes <- rownames(pre_post.c0.mrkrs)
+
+EnhancedVolcano(pre_post.c0.mrkrs,
+                lab = rownames(pre_post.c0.mrkrs),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Pre-Treated <--Log2FC--> Up in Post-Treated',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 0 tumor cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.c0.mrkrs <- pre_post.c0.mrkrs %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.c0.mrkrs$avg_log2FC
+names(fold_changes) <- pre_post.c0.mrkrs$genes
+pre_post.c0.gsea <- fgsea(pathways = hm.sym,
+                             stats = fold_changes,
+                             eps = 0.0,
+                             minSize = 15,
+                             maxSize = 500)
+pre_post.c0.gsea$comp <- 'Cluster 0 Post v Pre'
+
+# Pre Post cluster 13
+pre_post.c13.mrkrs <- FindMarkers(rcc5.filt.org.join,
+                                 group.by = 'ident_cluster',
+                                 ident.1 = 'RCC5_org Post_Treat_13',
+                                 ident.2 = 'RCC5_org Pre_Treat_13',
+                                 min.pct = 0.25,
+                                 min.diff.pct = 0.25,
+                                 verbose = F)
+pre_post.c13.mrkrs$genes <- rownames(pre_post.c13.mrkrs)
+
+EnhancedVolcano(pre_post.c13.mrkrs,
+                lab = rownames(pre_post.c13.mrkrs),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Pre-Treated <--Log2FC--> Up in Post-Treated',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 13 tumor cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.c13.mrkrs <- pre_post.c13.mrkrs %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.c13.mrkrs$avg_log2FC
+names(fold_changes) <- pre_post.c13.mrkrs$genes
+pre_post.c13.gsea <- fgsea(pathways = hm.sym,
+                          stats = fold_changes,
+                          eps = 0.0,
+                          minSize = 15,
+                          maxSize = 500)
+pre_post.c13.gsea$comp <- 'Cluster 13 Post v Pre'
+
+# Cluster 13 vs 0
+pre_post.c130.mrkrs <- FindMarkers(rcc5.filt.org.join,
+                                  group.by = 'seurat_clusters',
+                                  ident.1 = 13,
+                                  ident.2 = 0,
+                                  min.pct = 0.25,
+                                  min.diff.pct = 0.25,
+                                  verbose = F)
+pre_post.c130.mrkrs$genes <- rownames(pre_post.c130.mrkrs)
+
+EnhancedVolcano(pre_post.c130.mrkrs,
+                lab = rownames(pre_post.c130.mrkrs),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Cluster 0 <--Log2FC--> Up in Cluster 13',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 13 vs Cluster 0 tumor cells in Pre and Post treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre_post.c130.mrkrs <- pre_post.c130.mrkrs %>% arrange(desc(avg_log2FC))
+fold_changes <- pre_post.c130.mrkrs$avg_log2FC
+names(fold_changes) <- pre_post.c130.mrkrs$genes
+pre_post.c130.gsea <- fgsea(pathways = hm.sym,
+                           stats = fold_changes,
+                           eps = 0.0,
+                           minSize = 15,
+                           maxSize = 500)
+pre_post.c130.gsea$comp <- 'Cluster 13 v Cluster 0'
+
+# Cluster 13 vs 0 Pre only
+rcc5.filt.org.pre <- subset(rcc5.filt.org.join,subset = orig.ident == 'RCC5_org Pre_Treat')
+pre.c130.mrkrs <- FindMarkers(rcc5.filt.org.pre,
+                                   group.by = 'seurat_clusters',
+                                   ident.1 = 13,
+                                   ident.2 = 0,
+                                   min.pct = 0.25,
+                                   min.diff.pct = 0.25,
+                                   verbose = F)
+pre.c130.mrkrs$genes <- rownames(pre.c130.mrkrs)
+
+EnhancedVolcano(pre.c130.mrkrs,
+                lab = rownames(pre.c130.mrkrs),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Cluster 0 <--Log2FC--> Up in Cluster 13',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Cluster 13 vs Cluster 0 tumor cells in Pre-treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+pre.c130.mrkrs <- pre.c130.mrkrs %>% arrange(desc(avg_log2FC))
+fold_changes <- pre.c130.mrkrs$avg_log2FC
+names(fold_changes) <- pre.c130.mrkrs$genes
+pre.c130.gsea <- fgsea(pathways = hm.sym,
+                            stats = fold_changes,
+                            eps = 0.0,
+                            minSize = 15,
+                            maxSize = 500)
+pre.c130.gsea$comp <- 'Cluster 13 v Cluster 0 Pre-Treat'
+
+# Cluster 13 vs 0 Post-treated
+rcc5.filt.org.post <- subset(rcc5.filt.org.join, subset = orig.ident == 'RCC5_org Post_Treat')
+post.c130.mrkrs <- FindMarkers(rcc5.filt.org.post,
+                                   group.by = 'seurat_clusters',
+                                   ident.1 = 13,
+                                   ident.2 = 0,
+                                   min.pct = 0.25,
+                                   min.diff.pct = 0.25,
+                                   verbose = F)
+post.c130.mrkrs$genes <- rownames(post.c130.mrkrs)
+
+EnhancedVolcano(post.c130.mrkrs,
+                lab = rownames(post.c130.mrkrs),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Cluster 0 <--Log2FC--> Up in Cluster 13',
+                ylab = 'Adjuste P-value',
+                title = 'DEGs in Cluster 13 vs Cluster 0 tumor cells in Post-treated Organoids',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+post.c130.mrkrs <- post.c130.mrkrs %>% arrange(desc(avg_log2FC))
+fold_changes <- post.c130.mrkrs$avg_log2FC
+names(fold_changes) <- post.c130.mrkrs$genes
+post.c130.gsea <- fgsea(pathways = hm.sym,
+                            stats = fold_changes,
+                            eps = 0.0,
+                            minSize = 15,
+                            maxSize = 500)
+post.c130.gsea$comp <- 'Cluster 13 v Cluster 0 Post-Treat'
+
+############## Fgseplots combined - bubbleplot
+tops <- rbind(pre_post.tumor.gsea,pre_post.c0.gsea,pre_post.c13.gsea,pre_post.c130.gsea,pre.c130.gsea,post.c130.gsea)
+tops <- tops[tops$padj < 0.05,]
+tops <- tops[,c(1:7,9)]
+tops <- tops[!grepl("HALLMARK",tops$pathway),]
+tops$pathway <- gsub("HALLMARK_","",tops$pathway)
+tops$pathway <- gsub("_"," ",tops$pathway)
+tops <- tops[!grepl("ESTROGEN",tops$pathway),]
+tops <- tops[order(tops$padj,decreasing = F),]
+tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
+
+tops$comp <- factor(tops$comp)
+
+tops$NES <- as.numeric(round(tops$NES,digits=2))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Enriched in Post/13",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Enriched in Pre/0","Not significant")),
+                         levels = c("Enriched in Post/13", "Enriched in Pre/0","Not significant"))
+tops <- tops[!tops$Direction=="Not significant",]
+tops$absNES <- abs(tops$NES)
+
+# ggplot Volcano plots plus hallmark plot
+fill <- c("red","#3182bd")
+
+g1 <- ggplot(tops, aes(x = comp, y = pathway, size = absNES, fill = Direction)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  scale_fill_manual(values =fill) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.text=element_text(size=10,colour = "black")) + scale_y_discrete(limits = rev(levels(factor(tops$pathway)))) +
+scale_size(range = c(3,8),breaks = c(1,1.5,2)) +
+  
+  # ggtitle("edgeR common DEGs") +
+  xlab("")+ylab("")+theme_bw() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x.top = element_text(angle = 45, vjust = 0, hjust = 0,face="bold",size=10,colour = "black")) +
+  theme(axis.text.y = element_text(size =  10,colour = "black")) +
+  theme(axis.text=element_text(size=20), legend.text=element_text(size=12))+
+  guides(size=guide_legend(title="Normalized Enrichment Score (NES)", title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) +
+  guides(fill=guide_legend(title="Direction", override.aes = list(size=10), title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) #+ coord_equal(2/6)
+g1
+
+# Feature Plot of CA9 for clusters 0, 5, 13 only
+rcc5.filt.c1305 <- subset(rcc5.filt.org.join, subset = seurat_clusters %in% c(0,5,13))
+clusters.c1305 <- DimPlot(rcc5.filt.c1305,
+                          group.by = 'seurat_clusters',
+                          split.by = 'orig.ident')
+ca9_c130 <- FeaturePlot(rcc5.filt.c1305,
+                        features = c('CA9','EGFR','CXCL14'),
+                        split.by = 'orig.ident')
+angio <- FeaturePlot(rcc5.filt.c1305,
+                        features = c('LAP3','IFI44','IFITM2','MX1'),
+                        split.by = 'orig.ident')
+angio.all <- FeaturePlot(rcc5.filt,
+                         features = c('LAP3','IFI44','IFITM2','MX1'),
+                         split.by = 'orig.ident')
+
+ggarrange(ncol = 2,nrow = 1,clusters.c1305,ca9_c130)
+
+c1305.ca9 <- data.matrix(rcc5.filt.c1305@assays$RNA$counts[,rownames(rcc5.filt.c1305@meta.data[rcc5.filt.c1305@meta.data$seurat_clusters %in% c(0,5,13)&rcc5.filt.c1305@meta.data$orig.ident == 'RCC5T1T2_org Nerat Treated',])])
+c1305.ca9.dge <- DGEList(c1305.ca9,remove.zeros = T)
+c1305.ca9.dge <- calcNormFactors(c1305.ca9.dge)
+c1305.ca9 <- cpm(c1305.ca9.dge,log = T)
+c1305.ca9.t <- as.data.frame(t(c1305.ca9[rownames(c1305.ca9) %in% c('EGFR','CA9'),]))
+all(rownames(c1305.ca9.t)==rownames(rcc5.filt.c1305@meta.data[rcc5.filt.c1305@meta.data$seurat_clusters %in% c(0,5,13)&rcc5.filt.c1305@meta.data$orig.ident == 'RCC5T1T2_org Nerat Treated',]))
+c1305.ca9.t$cluster <- rcc5.filt.c1305@meta.data[rownames(rcc5.filt.c1305@meta.data)%in%rownames(c1305.ca9.t),]$seurat_clusters
+boxplot(c1305.ca9.t$EGFR~c1305.ca9.t$cluster)
+hist(c1305.ca9.t$CA9)
+#####
+
+
+# Combine all seurat objects for RCC1 RCC2 RCC3 RCC4T2
+#####
+set.seed(555)
+rcc.all <- merge(rcc1n, y = c(rcc1t1,rcc1t2,rcc2n,rcc2t1,rcc2t2,rcc3n,rcc3t1,rcc3t2,rcc4t2),
+                 add.cell.ids = c("RCC1N","RCC1T1","RCC1T2","RCC2N","RCC2T1","RCC2T2","RCC3N","RCC3T1","RCC3T2",'RCC4T2')) %>%
   Seurat::NormalizeData(verbose = FALSE) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
   ScaleData(verbose = FALSE) %>% 
@@ -496,7 +1553,7 @@ for (i in 1:length(rcc.filt.split)) {
 rcc.DF.all <- merge(x = rcc.filt.split[[1]],
                         y = c(rcc.filt.split[[2]], rcc.filt.split[[3]], rcc.filt.split[[4]],
                               rcc.filt.split[[5]], rcc.filt.split[[6]], rcc.filt.split[[7]],
-                              rcc.filt.split[[8]],rcc.filt.split[[9]]),
+                              rcc.filt.split[[8]],rcc.filt.split[[9]], rcc.filt.split[[10]]),
                         project = "rcc.filt scRNAseq",
                     merge.data = T)
 rcc.DF.all
@@ -586,7 +1643,7 @@ DefaultAssay(rcc.filt) <- "RNA"
 rcc.filt <- ScaleData(rcc.filt,verbose = T,features = rownames(rcc.filt))
 es.max = sctype_score(scRNAseqData = rcc.filt@assays$RNA$scale.data, 
                       scaled = TRUE, 
-                      gs = mrkr.list)
+                      gs = mrkr.list1)
 
 # merge by cluster
 cL_resutls = do.call("rbind", lapply(unique(rcc.filt@meta.data$seurat_clusters), function(cl){
@@ -597,12 +1654,12 @@ sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
 rcc.filt$ca9 <- rcc.filt@assays$RNA$scale.data['CA9',]
 
 ### UMAP
-rcc.filt@meta.data$cellassign = ""
+rcc.filt@meta.data$cellassign1 = ""
 for(j in unique(sctype_scores$cluster)){
   cl_type = sctype_scores[sctype_scores$cluster==j,]; 
-  rcc.filt@meta.data$cellassign[rcc.filt@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+  rcc.filt@meta.data$cellassign1[rcc.filt@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
 }
-rcc.filt$cellassign <- ifelse(rcc.filt$cellassign == 'Proximal tubular cell' & rcc.filt$ca9 > 0,'Proximal Tubular cell + CA9',rcc.filt$cellassign)
+rcc.filt$cellassign1 <- ifelse(rcc.filt$cellassign1 == 'Proximal tubular cell' & rcc.filt$ca9 > 0,'Proximal Tubular cell + CA9',rcc.filt$cellassign1)
 
 custom1 <- DimPlot(rcc.filt, reduction = "umap", label = TRUE, repel = TRUE,
                    split.by = "orig.ident",ncol=3,
@@ -611,12 +1668,35 @@ custom1 <- DimPlot(rcc.filt, reduction = "umap", label = TRUE, repel = TRUE,
 custom1
 
 custom2 <- DimPlot(rcc.filt, reduction = "umap", label = TRUE, repel = TRUE,
-                   group.by = 'cellassign',pt.size = 0.3,label.size = 5,order = T) + 
-  ggtitle("By cell type")
+                   split.by = 'orig.ident', ncol = 3,
+                   group.by = 'seurat_clusters',pt.size = 0.3,label.size = 5,order = T) + 
+  ggtitle("By cluster")
 custom2
 
 cowplot::plot_grid(ncol = 2, DimPlot(rcc.filt, group.by = "orig.ident") + NoAxes(),
                    DimPlot(rcc.filt, group.by = "cellassign") + NoAxes())
+
+# Find Markers
+all.markers <- FindAllMarkers(rcc.filt,
+                              min.pct = 0.25,
+                              min.diff.pct = 0.25)
+pos.markers <- FindAllMarkers(rcc.filt,
+                              min.pct = 0.25,
+                              min.diff.pct = 0.25,
+                              verbose = F,
+                              only.pos = T)
+pos.markers <- order(pos.markers,'cluster','pct.1')
+pos.marker.top15 <- pos.markers %>% group_by(cluster) %>% top_n(n = 15, wt = avg_log2FC)
+
+feat.plots <- FeaturePlot(rcc.filt,
+            features = c('RHCG'),
+            reduction = 'umap',
+            #split.by = 'orig.ident',
+            combine = T)
+wrap_plots(feat.plots, ncol = 3, nrow = 4)
+
+dim.plots <- DimPlot(rcc.filt,
+                     reduction = 'umap')
 
 # cairo_pdf(paste0(setdir,"RCC all plots.pdf"),width = 22,height = 20)
 # print(ggarrange(ggarrange(condition,clusters,custom2,nrow=1),orig.stim,custom1,ncol=1))
@@ -1647,14 +2727,81 @@ cairo_pdf(paste0(setdir,"Combined RCC fgsea bubble plot xcell.pdf"),width = 22,h
 print(g2)
 dev.off()
 
-#### ssgsea
+################################################################################
+# Single Cell Pathway Enrichment - UCell
+################################################################################
 library(scGSVA)
+library(GSA)
+library(UCell)
+library(Cairo)
+
+# Subset data into individual patient
 rcc1.norm <- subset(rcc.norm, subset = stim.new == 'RCC1')
 rcc2.norm <- subset(rcc.norm, subset = stim.new == 'RCC2')
 rcc3.norm <- subset(rcc.norm, subset = stim.new == 'RCC3')
 
-rcc1.anno <- buildAnnot(species = 'human',keytype='SYMBOL',anntype='GO')
-res <- scgsva(rcc3.norm, rcc1.anno,method = 'ssgsea')
+# Join Layers before running UCell
+rcc1.norm.join <- JoinLayers(rcc1.norm)
+
+# Load hm.sym hallmark pathways
+hm.sym <- GSA.read.gmt(paste0("h.all.v7.4.symbols.gmt.txt"))    # download all available genesets genesymbols .gmt file from MSigDB
+names(hm.sym$genesets) <- hm.sym$geneset.names
+hm.sym <- hm.sym$genesets
+names(hm.sym) <- gsub("HALLMARK_","",names(hm.sym))
+hm.sym <- hm.sym[order(names(hm.sym))]
+
+# Run UCELL
+rcc1.norm.U <- AddModuleScore_UCell(rcc1.norm.join,
+                                    features = hm.sym)
+
+# Rename names for hm.sym
+colnames(rcc1.norm.U@meta.data) <- gsub("_UCell","",colnames(rcc1.norm.U@meta.data))
+colnames(rcc1.norm.U@meta.data) <- gsub("HALLMARK_","",colnames(rcc1.norm.U@meta.data))
+
+# Factor
+rcc1.norm.U@meta.data$orig.ident <- factor(rcc1.norm.U@meta.data$orig.ident)
+
+# Plot UMAP results
+signatures <- c("E2F_TARGETS","G2M_CHECKPOINT","EPITHELIAL_MESENCHYMAL_TRANSITION")
+signatures1 <- c("INTERFERON_GAMMA_RESPONSE","INFLAMMATORY_RESPONSE","TNFA_SIGNALING_VIA_NFKB")
+fp <- FeaturePlot(rcc1.norm.U,
+            reduction = "umap",
+            features = "INTERFERON_GAMMA_RESPONSE", #c(signatures1,'ca9'),
+            split.by = "orig.ident",
+            #cols = c('gray','gray','red'),
+            repel = T,
+            order = T)
+fp <- fp & scale_colour_gradientn(colors = colorRampPalette(c("blue","lightgreen","khaki1","orange","red4"))(5))#c("#2b83ba","#abdda4","#ffffbf","#fc8d59","#d7191c"))(5)#c('gray','lightpink','maroon')) #c('gray', 'red'))
+
+dp <- DimPlot(rcc1.norm.U,
+        reduction = 'umap',
+        group.by = 'cellassign',
+        split.by = 'orig.ident',
+        order = T,
+        label = T,
+        repel = T)
+dp <- dp  + theme(legend.position = 'none')#+ xlim(-15,10) + ylim(-10,10)
+
+# Make loop to print pathways
+CairoPDF("RCC1 All Pathways.pdf", width = 19, height = 11, onefile = T)
+for( i in names(hm.sym)){
+  fp <- FeaturePlot(rcc1.norm.U,
+                    reduction = "umap",
+                    features = i, #c(signatures1,'ca9'),
+                    split.by = "orig.ident",
+                    #cols = c('gray','gray','red'),
+                    repel = T,
+                    order = T)
+  fp <- fp & scale_colour_gradientn(colors = colorRampPalette(c("blue","lightgreen","khaki1","orange","red4"))(5))#c("#2b83ba","#abdda4","#ffffbf","#fc8d59","#d7191c"))(5))#c('gray','lightpink','maroon')) #c('gray', 'red'))
+  
+  print(fp / dp)
+}
+dev.off()
+#####
+#gsva.anno <- buildAnnot(species = 'human',keytype='SYMBOL',anntype='GO')
+# res <- scgsva(rcc1.norm.join, 
+#               annot = hm.sym,
+#               method = 'UMAP')
 
 
 # all(rownames(counts(filtered.full))==rownames(y.full$genes))
@@ -1691,3 +2838,48 @@ res <- scgsva(rcc3.norm, rcc1.anno,method = 'ssgsea')
 #                          labels_col = gsub("Myriad","",annotations2[rownames(annotations2) %in% rownames(df.des2),]$Myriad))
 # 
 # dev.off()
+#####
+
+# Heat map of pathways by cell type
+#####
+library(pheatmap)
+
+# Get matrix of pathway values from Seurat metadata
+df.heatmap <- rcc1.norm.U@meta.data[,c(1,7,9:58)]
+
+# Combine scores from each RCC by cellassign type
+df.heatmap.ag <- aggregate(df.heatmap, 
+                           by = .~orig.ident+cellassign,
+                           FUN = mean)
+# # Add rownames
+ rownames(df.heatmap.ag) <- paste0(df.heatmap.ag$orig.ident,"_",df.heatmap.ag$cellassign)
+# rownames(df.heatmap.ag) = NULL
+
+# Sort out annotation columns i.e. orig.ident and cell assign
+df.heatmap.anno <- df.heatmap.ag[,c(1,2)]
+df.heatmap.ag <- df.heatmap.ag[,-c(1,2)]
+df.heatmap.ag <- as.data.frame(t(df.heatmap.ag))
+
+# Filter out low expressed pathways
+df.heatmap.ag$sums <- rowSums(df.heatmap.ag)
+df.heatmap.ag <- df.heatmap.ag[,c(61,1:60)] # put row sums in front for convenience
+
+low_paths <- df.heatmap.ag[df.heatmap.ag$sums < 4,]
+df.heatmap.ag <- df.heatmap.ag[!df.heatmap.ag$sums < 4,]
+
+df.heatmap.ag <- df.heatmap.ag[,c(-1)]
+
+# Set annotation colors
+ann_cols <- list(
+  orig.ident = c(RCC1N = 'khaki1',RCC1T1 = 'skyblue',RCC1T2 = 'red')
+)
+
+# Plot heatmap
+rcc1.heatmap <- pheatmap(as.matrix(df.heatmap.ag),
+                        cluster_rows = F,
+                        cluster_cols = F,
+                        annotation_col = df.heatmap.anno,
+                        annotation_colors = ann_cols,
+                        show_colnames = F,
+                        gaps_col = c(seq(3,60,by=3)),
+                        main = 'RCC1 Pathways')
