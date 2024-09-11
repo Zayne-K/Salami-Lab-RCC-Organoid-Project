@@ -299,29 +299,31 @@ doubletUMAP <- DimPlot(object = rcc10.pre,
                        group.by = 'DoubletID')
 qcDoublet <- identUMAP / doubletUMAP
 # ElbowPlot(rcc10)
-qcPlots.pre <- ggarrange(scatterCountMT.pre,scatterCountFeature.pre,p1o.pre,p3o.pre,ncol=2,nrow=2)
+qcPlots.pre <- ggarrange(scatterCountMT.pre,scatterCountFeature.pre,p1o.pre,p3o.pre,ncol=2,nrow=2) +
+  ggtitle('RCC10 Pre-Filtering QC Plots')
 
 #####
 
-### Perform Mito Filtering
+### Perform QC Filtering
 #####
 # Filter out high MT %
-#> RCC10N 11,318 'cells' -> 4047 cells
-#> RCC10T1 20,392 'cells' -> 20149 cells
-#> RCC10T2 19,929 'cells' -> 19,756 cells
-rcc10n.filt <- subset(rcc10n,
+#> RCC10N 11,318 'cells', 941 doublets -> 4047 cells, 453 doublets -> 3594
+#> RCC10T1 20,392 'cells', 3075 doublets -> 20149 cells, 3036 doublets -> 17,113
+#> RCC10T2 19,929 'cells', 2985 doublets -> 19756 cells, 2955 doublets -> 16,801
+rcc10 <- subset(rcc10.pre,
                      subset = #nCount_RNA > 800 &
                        #nFeature_RNA > 500 &
-                       percent.mt < 10)
-rcc10t1.filt <- subset(rcc10t1,
-                     subset = percent.mt < 10)
-rcc10t2.filt <- subset(rcc10t2,
-                       subset = percent.mt < 10)
+                       percent.mt < 10 &
+                  DoubletID == 'Singlet')
 #####
 
 ###############################################################################|
-### Run Doublet Finder
+### Run Doublet Finder after mito filtering
 #####
+rcc10n.filt <- subset(rcc10n, subset = percent.mt < 10)
+rcc10t1.filt <- subset(rcc10t1, subset = percent.mt < 10)
+rcc10t2.filt <- subset(rcc10t2, subset = percent.mt < 10)
+
 # RCC9N doublet finder; 7274 cells -> 7232 cells
 rcc10n.filt$multRate <- 0.0061 # from 10X based on cells recovered
 rcc10n.filt <- NormalizeData(rcc10n.filt, verbose = F) %>%
