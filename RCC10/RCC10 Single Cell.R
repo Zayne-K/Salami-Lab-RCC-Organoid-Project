@@ -30,26 +30,26 @@ library(monocle3)
 # library(metap)
 # library(multtest)
 
-setdir <- "/home/kzayne/Salami-Lab-RCC-Organoid-Project/RCC10/"
+setdir <- "/home/kzayne/Salami-Lab-RCC-Organoid-Project/"
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
 
 ### Cell markers file
-kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
+# mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
+# names(mrkr.list) <- kid.mrkrs$cell_name
+# 
+# for(i in 1:length(mrkr.list)){
+#   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
+# }
+
+kid.mrkrs <- read.csv("Mohan Normal Kidney Cell Markers.csv",header = T) #Final kidney markers.csv
 kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
 mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
 names(mrkr.list) <- kid.mrkrs$cell_name
 
 for(i in 1:length(mrkr.list)){
   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
-}
-
-kid.mrkrs1 <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
-kid.mrkrs1 <- kid.mrkrs1[!kid.mrkrs1$cell_name %in% c("Neutrophil","Cancer stem cell"),]
-mrkr.list1 <- as.list(as.character(kid.mrkrs1$Symbol))
-names(mrkr.list1) <- kid.mrkrs1$cell_name
-
-for(i in 1:length(mrkr.list1)){
-  mrkr.list1[[i]] <- unlist(strsplit(mrkr.list1[[i]], "," ))
 }
 
 # mrkr.list1[['Tumor']] = c(mrkr.list1[['Proximal tubule-1']],'NNMT','CA9','KRT19','KRT18')
@@ -405,15 +405,15 @@ custom1 <- DimPlot(rcc10,
                    repel = TRUE,
                    split.by = "orig.ident",
                    group.by = 'cellassign',
-                   pt.size = 0.5,
-                   label.size = 3,
+                   pt.size = 0.1,
+                   label.size = 5,
                    order = T) +
   ggtitle("Cellassign")
 custom1
 
 clusters <- DimPlot(rcc10,
                     reduction = "umap",
-                    pt.size = 0.5,
+                    pt.size = 0.1,
                     split.by='orig.ident',
                     group.by = "seurat_clusters",
                     label = T,
