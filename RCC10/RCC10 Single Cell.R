@@ -1,6 +1,6 @@
 rm(list=ls())
 
-.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2.3/")
+.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2/")
 
 library(patchwork)
 library(dplyr)
