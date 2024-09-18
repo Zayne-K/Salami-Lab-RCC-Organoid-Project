@@ -506,21 +506,185 @@ geneCluster <- as.data.frame(geneCluster)
 
 ### Find gene differences between Normal and Tumor clusters/cell types
 # Create column for origin tissue and cluster
+rcc10.join$Tumor <- ifelse(rcc10.join$seurat_clusters %in% c(4,9,11),'Tumor 1',
+                      ifelse(rcc10.join$seurat_clusters %in% c(7,25,35),'Tumor 2','NonTumor'))
+rcc10.join$orig.tumor <- paste0(rcc10.join$orig.ident,'.',rcc10.join$Tumor)
 rcc10.join$orig.cluster <- paste0(rcc10$orig.ident,".",rcc10$seurat_clusters)
+
+DimPlot(rcc10.join,
+        reduction = 'umap',
+        label = T,
+        repel = T,
+        group.by = 'orig.tumor',
+        split.by = 'orig.ident',
+        pt.size = 0.1,
+        label.size = 3,
+        order = T) +
+  ggtitle("Identity + tumor group")
+
 # Tumor cluster 0 vs Normal cluster 6
-t0_n6 <- FindMarkers(rcc10.join,
-                     group.by = 'orig.cluster',
-                     ident.1 = 'rcc10T.0',
-                     ident.2 = 'rcc10N.6',
+T1.g1_T1.g2 <- FindMarkers(rcc10.join,
+                     group.by = 'orig.tumor',
+                     ident.1 = 'RCC10T1.Tumor 1',
+                     ident.2 = 'RCC10T1.Tumor 2',
                      min.pct = 0.25,
                      min.diff.pct = 0.25,
                      verbose = F)
-EnhancedVolcano(t0_n6,
-                lab = rownames(t0_n6),
+EnhancedVolcano(T1.g1_T1.g2,
+                lab = rownames(T1.g1_T1.g2),
                 x = 'avg_log2FC',
                 y = 'p_val_adj',
-                xlab = 'Up in Normal Prox-Tub <--Log2FC--> Up in Tumor 0',
+                xlab = 'Up in Tumor Cluster 2 <--Log2FC--> Up in Tumor Cluster 1',
                 ylab = 'Adjusted P-value',
-                title = 'DEGs in Tumor cells in Tumor Cluster 0 vs Normal Proximal Tubule 2',
+                title = 'DEGs in RCC10 T1 Tumor 1 vs Tumor 2',
                 pCutoff = 0.05,
                 FCcutoff = 1.5)
+T1.g1_T1.g2$genes <- rownames(T1.g1_T1.g2)
+
+T1.g1_T1.g2 <- T1.g1_T1.g2 %>% arrange(desc(avg_log2FC))
+fold_changes <- T1.g1_T1.g2$avg_log2FC
+names(fold_changes) <-T1.g1_T1.g2$genes
+T1.g1_T1.g2.gsea <- fgsea(pathways = hm.sym,
+                    stats = fold_changes,
+                    eps = 0.0,
+                    minSize = 15,
+                    maxSize = 500)
+T1.g1_T1.g2.gsea$comp <- 'T1 Tumor 1 v Tumor 2'
+
+# Tumor cluster 0 vs Normal cluster 6
+T2.g1_T2.g2 <- FindMarkers(rcc10.join,
+                           group.by = 'orig.tumor',
+                           ident.1 = 'RCC10T2.Tumor 1',
+                           ident.2 = 'RCC10T2.Tumor 2',
+                           min.pct = 0.25,
+                           min.diff.pct = 0.25,
+                           verbose = F)
+EnhancedVolcano(T2.g1_T2.g2,
+                lab = rownames(T2.g1_T2.g2),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Tumor Cluster 2 <--Log2FC--> Up in Tumor Cluster 1',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in RCC10 T2 Tumor 1 vs Tumor 2',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+T2.g1_T2.g2$genes <- rownames(T2.g1_T2.g2)
+
+T2.g1_T2.g2 <- T2.g1_T2.g2 %>% arrange(desc(avg_log2FC))
+fold_changes <- T2.g1_T2.g2$avg_log2FC
+names(fold_changes) <-T2.g1_T2.g2$genes
+T2.g1_T2.g2.gsea <- fgsea(pathways = hm.sym,
+                          stats = fold_changes,
+                          eps = 0.0,
+                          minSize = 15,
+                          maxSize = 500)
+T2.g1_T2.g2.gsea$comp <- 'T2 Tumor 1 v Tumor 2'
+
+# Tumor cluster 0 vs Normal cluster 6
+T1.g1_T2.g1 <- FindMarkers(rcc10.join,
+                           group.by = 'orig.tumor',
+                           ident.1 = 'RCC10T1.Tumor 1',
+                           ident.2 = 'RCC10T2.Tumor 1',
+                           min.pct = 0.25,
+                           min.diff.pct = 0.25,
+                           verbose = F)
+EnhancedVolcano(T1.g1_T2.g1,
+                lab = rownames(T1.g1_T2.g1),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in T2 <--Log2FC--> Up in T1',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in RCC10 T1 Tumor 1 vs T2 Tumor 1',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+T1.g1_T2.g1$genes <- rownames(T1.g1_T2.g1)
+
+T1.g1_T2.g1 <- T1.g1_T2.g1 %>% arrange(desc(avg_log2FC))
+fold_changes <- T1.g1_T2.g1$avg_log2FC
+names(fold_changes) <-T1.g1_T2.g1$genes
+T1.g1_T2.g1.gsea <- fgsea(pathways = hm.sym,
+                          stats = fold_changes,
+                          eps = 0.0,
+                          minSize = 15,
+                          maxSize = 500)
+T1.g1_T2.g1.gsea$comp <- 'T1 Tumor 1 v T2 Tumor 1'
+
+# Tumor cluster 0 vs Normal cluster 6
+T1.g2_T2.g2 <- FindMarkers(rcc10.join,
+                           group.by = 'orig.tumor',
+                           ident.1 = 'RCC10T1.Tumor 2',
+                           ident.2 = 'RCC10T2.Tumor 2',
+                           min.pct = 0.25,
+                           min.diff.pct = 0.25,
+                           verbose = F)
+EnhancedVolcano(T1.g2_T2.g2,
+                lab = rownames(T1.g2_T2.g2),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in T2 <--Log2FC--> Up in T1',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in RCC10 T1 Tumor 2 vs T2 Tumor 2',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+T1.g2_T2.g2$genes <- rownames(T1.g2_T2.g2)
+
+T1.g2_T2.g2 <- T1.g2_T2.g2 %>% arrange(desc(avg_log2FC))
+fold_changes <- T1.g2_T2.g2$avg_log2FC
+names(fold_changes) <-T1.g2_T2.g2$genes
+T1.g2_T2.g2.gsea <- fgsea(pathways = hm.sym,
+                          stats = fold_changes,
+                          eps = 0.0,
+                          minSize = 15,
+                          maxSize = 500)
+T1.g2_T2.g2.gsea$comp <- 'T1 Tumor 2 v T2 Tumor 2'
+
+###############################################################################|
+### Combined FGSEA bubble plot
+#####
+tops <- rbind(T1.g1_T1.g2.gsea,T2.g1_T2.g2.gsea, T1.g1_T2.g1.gsea, T1.g2_T2.g2.gsea)
+tops <- tops[tops$padj < 0.05,]
+tops <- tops[,c(1:7,9)]
+tops <- tops[!grepl("HALLMARK",tops$pathway),]
+tops$pathway <- gsub("HALLMARK_","",tops$pathway)
+tops$pathway <- gsub("_"," ",tops$pathway)
+#tops <- tops[!grepl("ESTROGEN",tops$pathway),]
+tops <- tops[order(tops$padj,decreasing = F),]
+tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
+
+tops$comp <- factor(tops$comp)
+
+tops$NES <- as.numeric(round(tops$NES,digits=2))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Enriched in Tumor 1",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Enriched in Tumor 2","Not significant")),
+                         levels = c("Enriched in Tumor 1", "Enriched in Tumor 2","Not significant"))
+tops <- tops[!tops$Direction=="Not significant",]
+tops$absNES <- abs(tops$NES)
+
+# ggplot Volcano plots plus hallmark plot
+fill <- c("red","#3182bd")
+
+g1 <- ggplot(tops, aes(x = comp, y = pathway, size = absNES, fill = Direction)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  scale_fill_manual(values =fill) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.text=element_text(size=10,colour = "black")) + scale_y_discrete(limits = rev(levels(factor(tops$pathway)))) +
+  scale_size(range = c(3,8),breaks = c(1,1.5,2)) +
+  
+  # ggtitle("edgeR common DEGs") +
+  xlab("")+ylab("")+theme_bw() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x.top = element_text(angle = 45, vjust = 0, hjust = 0,face="bold",size=10,colour = "black")) +
+  theme(axis.text.y = element_text(size =  10,colour = "black")) +
+  theme(axis.text=element_text(size=20), legend.text=element_text(size=12))+
+  guides(size=guide_legend(title="Normalized Enrichment Score (NES)", title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) +
+  guides(fill=guide_legend(title="Direction", override.aes = list(size=10), title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) #+ coord_equal(2/6)
+g1
