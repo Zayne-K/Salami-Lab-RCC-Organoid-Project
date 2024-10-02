@@ -34,22 +34,22 @@ setdir <- "/home/kzayne/Salami-Lab-RCC-Organoid-Project/"
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
 
 ### Cell markers file
-kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
+# mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
+# names(mrkr.list) <- kid.mrkrs$cell_name
+# 
+# for(i in 1:length(mrkr.list)){
+#   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
+# }
+
+kid.mrkrs <- read.csv("Mohan Normal Kidney Cell Markers.csv",header = T) #Final kidney markers.csv
 kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
 mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
 names(mrkr.list) <- kid.mrkrs$cell_name
 
 for(i in 1:length(mrkr.list)){
   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
-}
-
-kid.mrkrs1 <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
-kid.mrkrs1 <- kid.mrkrs1[!kid.mrkrs1$cell_name %in% c("Neutrophil","Cancer stem cell"),]
-mrkr.list1 <- as.list(as.character(kid.mrkrs1$Symbol))
-names(mrkr.list1) <- kid.mrkrs1$cell_name
-
-for(i in 1:length(mrkr.list1)){
-  mrkr.list1[[i]] <- unlist(strsplit(mrkr.list1[[i]], "," ))
 }
 
 # mrkr.list1[['Tumor']] = c(mrkr.list1[['Proximal tubule-1']],'NNMT','CA9','KRT19','KRT18')
@@ -112,6 +112,20 @@ rcc5t1t2_org_preTreat <- CreateSeuratObject(counts = rcc5t1t2_org_pre.data, proj
 
 rcc5t1t2_org_post.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1T2_org_nerat_treat/outs/filtered_feature_bc_matrix')
 rcc5t1t2_org_postTreat <- CreateSeuratObject(counts = rcc5t1t2_org_post.data, project = 'RCC5_org Post_Treat')
+
+# Load RCC9 datasets
+rcc9n.data <- Read10X(data.dir = '/avatar_data4/11559-TP/10x_analysis_11559-TP/Sample_11559-TP-1/filtered_feature_bc_matrix')
+rcc9n <- CreateSeuratObject(counts = rcc9n.data, project = 'RCC9N Tissue')
+
+# Load RCC10 datasets
+rcc10n.data <- Read10X(data.dir = '/avatar_data4/11632-TP/10x_analysis_11632-TP/Sample_11632-TP-1/filtered_feature_bc_matrix')
+rcc10n <- CreateSeuratObject(counts = rcc10n.data, project = 'RCC10N Tissue')
+
+rcc10t1.data <- Read10X(data.dir = '/avatar_data4/11632-TP/10x_analysis_11632-TP/Sample_11632-TP-2/filtered_feature_bc_matrix/')
+rcc10t1 <- CreateSeuratObject(counts = rcc10t1.data, project = 'RCC10T1 Tissue')
+
+rcc10t2.data <- Read10X(data.dir = '/avatar_data4/11632-TP/10x_analysis_11632-TP/Sample_11632-TP-3/filtered_feature_bc_matrix/')
+rcc10t2 <- CreateSeuratObject(counts = rcc10t2.data, project = 'RCC10T2 Tissue')
 
 # Combine all seurat objects for RCC1
 #####
@@ -846,6 +860,354 @@ rcc4.features <- FeaturePlot(rcc4,
                              repel=F,order = T,
                              features = c("CA9",'KIT','RHCG','LINC01187','FOXI1'),#"NCAM1","EPCAM","IFG2BP3"),
                              split.by = "orig.ident",pt.size = 0.5)
+
+#####
+
+# Combine all RCC9
+#####
+# Read in tumor tissue
+rcc9t.data <- Read10X(data.dir = '/avatar_data4/11559-TP/10x_analysis_11559-TP/Sample_11559-TP-2/filtered_feature_bc_matrix/')
+rcc9t <- CreateSeuratObject(counts = rcc9t.data, project = 'RCC9T Tissue')
+
+### Perform Mito Filtering
+# Get mitochondrial RNA percentage
+rcc9n[['percent.mt']] <- PercentageFeatureSet(rcc9n, pattern = '^MT-')
+rcc9t[['percent.mt']] <- PercentageFeatureSet(rcc9t, pattern = '^MT-')
+
+# Filter out high MT %
+#> RCC9N 8928 'cells' -> 7274 cells
+#> RCC9T 5067 'cells' -> 3916 cells
+rcc9n.filt <- subset(rcc9n,
+                     subset = #nCount_RNA > 800 &
+                       #nFeature_RNA > 500 &
+                       percent.mt < 10)
+rcc9t.filt <- subset(rcc9t,
+                     subset = percent.mt < 10)
+rcc9n.filt$multRate <- 0.0061 # from 10X based on cells recovered
+rcc9n.filt <- NormalizeData(rcc9n.filt, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc9n@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# find pK based on no ground truth
+sweep.res.list_nsclc <- paramSweep(rcc9n.filt, PCs = 1:20, sct = F)
+sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = F)
+bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+
+# ggplot(bcmvn_nsclc, aes(pK, BCmetric, group = 1)) +
+#   geom_point() +
+#   geom_line()
+
+pK <- bcmvn_nsclc %>% # select pK with max BCmetric
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK)
+pK <- as.numeric(as.character(pK[[1]]))
+
+# Homotypic doublet proprotion estimate
+annotations <- rcc9n.filt@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+nExp_poi <- round(unique(rcc9n.filt$multRate)*nrow(rcc9n.filt@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1-homotypic.prop))
+
+# run DoubletFinder
+rcc9n.filt <- doubletFinder(rcc9n.filt,
+                            PCs = 1:20,
+                            pN = 0.25,
+                            pK = pK,
+                            nExp = nExp_poi.adj,
+                            reuse.pANN = F,
+                            sct = F)
+colDF <- colnames(rcc9n.filt@meta.data)[grepl('DF.*',colnames(rcc9n.filt@meta.data))]
+
+# Rename doublet identying column
+names(rcc9n.filt@meta.data)[names(rcc9n.filt@meta.data) == colDF] <- 'DoubletID'
+# Filter out doublets
+rcc9n.filt <- subset(rcc9n.filt, subset = DoubletID == 'Singlet')
+
+# RCC9T Doublet Finder; 3916 cells -> 3903 cells
+rcc9t.filt$multRate <- 0.0039 # from 10X based on cells recovered
+rcc9t.filt <- NormalizeData(rcc9t.filt, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc9t@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# find pK based on no ground truth
+sweep.res.list_nsclc <- paramSweep(rcc9t.filt, PCs = 1:20, sct = F)
+sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = F)
+bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+
+# ggplot(bcmvn_nsclc, aes(pK, BCmetric, group = 1)) +
+#   geom_point() +
+#   geom_line()
+
+pK <- bcmvn_nsclc %>% # select pK with max BCmetric
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK)
+pK <- as.numeric(as.character(pK[[1]]))
+
+# Homotypic doublet proprotion estimate
+annotations <- rcc9t.filt@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+nExp_poi <- round(unique(rcc9t.filt$multRate)*nrow(rcc9t.filt@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1-homotypic.prop))
+
+# run DoubletFinder
+rcc9t.filt <- doubletFinder(rcc9t.filt,
+                            PCs = 1:20,
+                            pN = 0.25,
+                            pK = pK,
+                            nExp = nExp_poi.adj,
+                            reuse.pANN = F,
+                            sct = F)
+colDF <- colnames(rcc9t.filt@meta.data)[grepl('DF.*',colnames(rcc9t.filt@meta.data))]
+
+# Rename doublet identying column
+names(rcc9t.filt@meta.data)[names(rcc9t.filt@meta.data) == colDF] <- 'DoubletID'
+# Filter out doublets
+rcc9t.filt <- subset(rcc9t.filt, subset = DoubletID == 'Singlet')
+
+###############################################################################|
+### Combine all RCC9 objects
+# Merger normal and tissue data
+set.seed(555)
+rcc9 <- merge(rcc9n.filt, y = c(rcc9t.filt),
+              add.cell.ids = c("RCC9N", "RCC9T")) %>%
+  Seurat::NormalizeData(verbose = FALSE) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc9@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(resolution = 0.8, verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+### Cell type assignment
+# Assign clusters
+# get cell-type by cell matrix
+DefaultAssay(rcc9) <- "RNA" # SCT
+rcc9 <- ScaleData(rcc9,verbose = T,features = rownames(rcc9))
+es.max = sctype_score(scRNAseqData = rcc9@assays$RNA$scale.data, #SCT
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls = do.call("rbind", lapply(unique(rcc9@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc9@meta.data[rcc9@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc9@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc9@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc9@meta.data$cellassign[rcc9@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+#####
+
+# Combine all RCC10
+#####
+# Get mitochondrial RNA percentage
+rcc10n[['percent.mt']] <- PercentageFeatureSet(rcc10n, pattern = '^MT-')
+rcc10t1[['percent.mt']] <- PercentageFeatureSet(rcc10t1, pattern = '^MT-')
+rcc10t2[['percent.mt']] <- PercentageFeatureSet(rcc10t2, pattern = '^MT-')
+rcc10n.pre <- subset(rcc10n, subset = percent.mt < 10)
+rcc10t1.pre <- subset(rcc10t1, subset = percent.mt < 10)
+rcc10t2.pre <- subset(rcc10t2, subset = percent.mt < 10)
+
+set.seed(555)
+# General workflow for rcc10n
+rcc10n.pre <- NormalizeData(rcc10n.pre, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10n.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# General workflow for rcc10t1
+rcc10t1.pre <- NormalizeData(rcc10t1.pre, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10t1.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# General workflow for rcc10t2
+rcc10t2.pre <- NormalizeData(rcc10t2.pre, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10t2.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# RCC10N doublet finder; 11,318 cells -> 8.8% multiplet rate
+rcc10n.pre$multRate <- 0.088 # from 10X based on cells recovered
+rcc10n.pre <- NormalizeData(rcc10n.pre, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10n.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# find pK based on no ground truth
+sweep.res.list_nsclc <- paramSweep(rcc10n.pre, PCs = 1:20, sct = F)
+sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = F)
+bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+
+# ggplot(bcmvn_nsclc, aes(pK, BCmetric, group = 1)) +
+#   geom_point() +
+#   geom_line()
+
+pK <- bcmvn_nsclc %>% # select pK with max BCmetric
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK)
+pK <- as.numeric(as.character(pK[[1]]))
+
+# Homotypic doublet proprotion estimate
+annotations <- rcc10n.pre@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+nExp_poi <- round(unique(rcc10n.pre$multRate)*nrow(rcc10n.pre@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1-homotypic.prop))
+
+# run DoubletFinder
+rcc10n.pre <- doubletFinder(rcc10n.pre,
+                            PCs = 1:20,
+                            pN = 0.25,
+                            pK = pK,
+                            nExp = nExp_poi.adj,
+                            reuse.pANN = F,
+                            sct = F)
+colDF <- colnames(rcc10n.pre@meta.data)[grepl('DF.*',colnames(rcc10n.pre@meta.data))]
+
+# Rename doublet identying column
+names(rcc10n.pre@meta.data)[names(rcc10n.pre@meta.data) == colDF] <- 'DoubletID'
+# RCC10T1 doublet finder; 20,392 cells -> 16% multiplet rate
+rcc10t1.pre$multRate <- 0.16 # from 10X based on cells recovered
+rcc10t1.pre <- NormalizeData(rcc10t1.pre, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10t1.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# find pK based on no ground truth
+sweep.res.list_nsclc <- paramSweep(rcc10t1.pre, PCs = 1:20, sct = F)
+sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = F)
+bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+
+# ggplot(bcmvn_nsclc, aes(pK, BCmetric, group = 1)) +
+#   geom_point() +
+#   geom_line()
+
+pK <- bcmvn_nsclc %>% # select pK with max BCmetric
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK)
+pK <- as.numeric(as.character(pK[[1]]))
+
+# Homotypic doublet proprotion estimate
+annotations <- rcc10t1.pre@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+nExp_poi <- round(unique(rcc10t1.pre$multRate)*nrow(rcc10t1.pre@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1-homotypic.prop))
+
+# run DoubletFinder
+rcc10t1.pre <- doubletFinder(rcc10t1.pre,
+                             PCs = 1:20,
+                             pN = 0.25,
+                             pK = pK,
+                             nExp = nExp_poi.adj,
+                             reuse.pANN = F,
+                             sct = F)
+colDF <- colnames(rcc10t1.pre@meta.data)[grepl('DF.*',colnames(rcc10t1.pre@meta.data))]
+
+# Rename doublet identying column
+names(rcc10t1.pre@meta.data)[names(rcc10t1.pre@meta.data) == colDF] <- 'DoubletID'
+# RCC10T2 doublet finder; 19,929 cells -> 16% multiplet rate
+rcc10t2.pre$multRate <- 0.16 # from 10X based on cells recovered
+rcc10t2.pre <- NormalizeData(rcc10t2.pre, verbose = F) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10t2.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# find pK based on no ground truth
+sweep.res.list_nsclc <- paramSweep(rcc10t2.pre, PCs = 1:20, sct = F)
+sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = F)
+bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+
+# ggplot(bcmvn_nsclc, aes(pK, BCmetric, group = 1)) +
+#   geom_point() +
+#   geom_line()
+
+pK <- bcmvn_nsclc %>% # select pK with max BCmetric
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK)
+pK <- as.numeric(as.character(pK[[1]]))
+
+# Homotypic doublet proprotion estimate
+annotations <- rcc10t2.pre@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+nExp_poi <- round(unique(rcc10t2.pre$multRate)*nrow(rcc10t2.pre@meta.data))
+nExp_poi.adj <- round(nExp_poi * (1-homotypic.prop))
+
+# run DoubletFinder
+rcc10t2.pre <- doubletFinder(rcc10t2.pre,
+                             PCs = 1:20,
+                             pN = 0.25,
+                             pK = pK,
+                             nExp = nExp_poi.adj,
+                             reuse.pANN = F,
+                             sct = F)
+colDF <- colnames(rcc10t2.pre@meta.data)[grepl('DF.*',colnames(rcc10t2.pre@meta.data))]
+
+# Rename doublet identying column
+names(rcc10t2.pre@meta.data)[names(rcc10t2.pre@meta.data) == colDF] <- 'DoubletID'
+### Combine individual objects
+rcc10.pre <- merge(rcc10n.pre, y = c(rcc10t1.pre, rcc10t2.pre),
+                   add.cell.ids = c("rcc10N", "rcc10T1", "rcc10T2")) %>%
+  Seurat::NormalizeData(verbose = FALSE) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = F) %>%
+  FindClusters(resolution = 0.8, verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+rcc10 <- subset(rcc10.pre,
+                subset = DoubletID == 'Singlet')
+
+### Cell type assignment
+# Assign clusters
+# get cell-type by cell matrix
+DefaultAssay(rcc10) <- "RNA" # SCT
+rcc10 <- ScaleData(rcc10,verbose = T,features = rownames(rcc10))
+es.max = sctype_score(scRNAseqData = rcc10@assays$RNA$scale.data, #SCT
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls = do.call("rbind", lapply(unique(rcc10@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc10@meta.data[rcc10@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc10@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc10@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc10@meta.data$cellassign[rcc10@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
 
 #####
 
@@ -1942,83 +2304,6 @@ boxplot(c1305.ca9.t$EGFR~c1305.ca9.t$cluster)
 hist(c1305.ca9.t$CA9)
 #####
 
-
-################################## RCC9
-#####
-### Load in data
-# Read in normal tissue
-rcc9n.data <- Read10X(data.dir = '/avatar_data4/11559-TP/10x_analysis_11559-TP/Sample_11559-TP-1/filtered_feature_bc_matrix')
-rcc9n <- CreateSeuratObject(counts = rcc9n.data, project = 'RCC9N Tissue')
-
-# Read in tumor tissue
-rcc9t.data <- Read10X(data.dir = '/avatar_data4/11559-TP/10x_analysis_11559-TP/Sample_11559-TP-2/filtered_feature_bc_matrix/')
-rcc9t <- CreateSeuratObject(counts = rcc9t.data, project = 'RCC9T Tissue')
-
-### Perform Mito Filtering
-# Get mitochondrial RNA percentage
-rcc9n[['percent.mt']] <- PercentageFeatureSet(rcc9n, pattern = '^MT-')
-rcc9t[['percent.mt']] <- PercentageFeatureSet(rcc9t, pattern = '^MT-')
-
-# Filter out high MT %
-#> RCC9N 8928 'cells' -> 7274 cells
-#> RCC9T 5067 'cells' -> 3916 cells
-rcc9n.filt <- subset(rcc9n,
-                subset = percent.mt < 10)
-rcc9t.filt <- subset(rcc9t,
-                subset = percent.mt < 10)
-
-### Run Doublet Finder
-# RCC9N doublet finder; 7274 cells ->
-rcc9n.filt$multRate <- 0.0061 # from 10X based on cells recovered
-rcc9n.filt <- NormalizeData(rcc9n.filt, verbose = F) %>%
-  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
-  ScaleData(verbose = FALSE) %>%
-  RunPCA(pc.genes = rcc5@var.genes, npcs = 20, verbose = FALSE) %>%
-  FindNeighbors(dims = 1:20, verbose = F) %>%
-  FindClusters(verbose = F) %>%
-  RunUMAP(dims = 1:20, verbose = F)
-
-# find pK based on no ground truth
-sweep.res.list_nsclc <- paramSweep(rcc9n.filt, PCs = 1:20, sct = F)
-sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = F)
-bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
-
-# ggplot(bcmvn_nsclc, aes(pK, BCmetric, group = 1)) +
-#   geom_point() +
-#   geom_line()
-
-pK <- bcmvn_nsclc %>% # select pK with max BCmetric
-  filter(BCmetric == max(BCmetric)) %>%
-  select(pK)
-pK <- as.numeric(as.character(pK[[1]]))
-
-# Homotypic doublet proprotion estimate
-annotations <- rcc9n.filt@meta.data$seurat_clusters
-homotypic.prop <- modelHomotypic(annotations)
-nExp_poi <- round(unique(rcc9n.filt$multRate)*nrow(rcc9n.filt@meta.data))
-nExp_poi.adj <- round(nExp_poi * (1-homotypic.prop))
-
-# run DoubletFinder
-rcc9n.filt <- doubletFinder(rcc9n.filt,
-                       PCs = 1:20,
-                       pN = 0.25,
-                       pK = pK,
-                       nExp = nExp_poi.adj,
-                       reuse.pANN = F,
-                       sct = F)
-colDF <- colnames(rcc9n.filt@meta.data)[grepl('DF.*',colnames(rcc9n.filt@meta.data))]
-
-# Rename doublet identying column
-names(rcc9n.filt@meta.data)[names(rcc9n.filt@meta.data) == colDF] <- 'DoubletID'
-DimPlot(rcc9n.filt, 
-        reduction = 'umap', 
-        group.by = 'DoubletID')
-
-# Filter out doublets
-rcc9n <- subset(rcc9n, subset = DoubletID == 'Singlet')
-
-#####
-
 # Combine all seurat objects for RCC1 RCC2 RCC3 RCC4T2
 #####
 set.seed(555)
@@ -2319,6 +2604,94 @@ FeaturePlot(rcc.filt,
             pt.size = 0.5)
 #####
 
+# Combine all RCCs
+#####
+rcc.all <- merge(rcc5, y = c(rcc9,rcc10),
+                 add.cell.ids = c("RCC5","RCC9","RCC10"))%>%
+  Seurat::NormalizeData(verbose = FALSE) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>% 
+  ScaleData(verbose = FALSE) %>% 
+  RunPCA(pc.genes = rcc.all@var.genes, npcs = 20, verbose = FALSE)
+
+allRCC.pre <- DimPlot(rcc.all,
+                      reduction = 'pca',
+                      group.by = 'orig.ident',
+                      label = T,
+                      order = T,
+                      repel = T) +
+  ggtitle('All RCC Pre Harmony PCA')
+
+rcc.all <- RunHarmony(rcc.all,
+                      'orig.ident',
+                      verbose = F)
+rcc.all <- FindNeighbors(rcc.all, dims = 1:20, verbose = F) %>%
+  FindClusters(resolution = 0.8, verbose = F) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+allRCC.post <- DimPlot(rcc.all,
+                       reduction = 'harmony',
+                       group.by = 'orig.ident',
+                       label = T,
+                       order = T,
+                       repel =T) +
+  ggtitle('All RCC Post Harmony PCA')
+### Cell type assignment
+# Assign clusters
+# get cell-type by cell matrix
+DefaultAssay(rcc.all) <- "RNA" # SCT
+rcc.all <- ScaleData(rcc.all,verbose = T,features = rownames(rcc.all))
+es.max = sctype_score(scRNAseqData = rcc.all@assays$RNA$scale.data, #SCT
+                      scaled = TRUE,
+                      gs = mrkr.list)
+
+# merge by cluster
+cL_resutls = do.call("rbind", lapply(unique(rcc.all@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(rcc.all@meta.data[rcc.all@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(rcc.all@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+
+### UMAP
+rcc.all@meta.data$cellassign = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  rcc.all@meta.data$cellassign[rcc.all@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+
+allRCC.tissue <- DimPlot(rcc.all,
+                  reduction = 'umap',
+                  group.by = 'orig.ident',
+                  label = T,
+                  order = T,
+                  repel = T,
+                  cols = c('yellow','orange','red','turquoise','blue','purple','navy','lightblue','green','darkgreen')) +
+  ggtitle('All RCC by Tissue Origin')
+allRCC.cluster <- DimPlot(rcc.all,
+                          reduction = 'umap',
+                          group.by = 'seurat_clusters',
+                          label = T,
+                          repel = T,
+                          order = T) +
+  ggtitle('All RCC by Cluster')
+allRCC.cellassign <- DimPlot(rcc.all,
+                             reduction = 'umap',
+                             group.by = 'cellassign',
+                             label = T,
+                             repel = T,
+                             order = T) +
+  ggtitle('All RCC by Cell Assign')
+allRCC.ca9 <- FeaturePlot(rcc.all,
+                          features = 'CA9',
+                          reduction = 'umap',
+                          label = T,
+                          repel = T,
+                          order = T)
+allRCC.cxcl14 <- FeaturePlot(rcc.all,
+                             features = 'CXCL14',
+                             reduction = 'umap',
+                             label = T,
+                             repel = T,
+                             order = T)
 # Derive CCP EMT 15G scores
 #####
 myr.15 <- c("IGF2BP3","PTK6" ,   "BOLA3" ,  "UQCRH" ,  "TFCP2L1" ,"SLC7A8" , "SLC16A1",
