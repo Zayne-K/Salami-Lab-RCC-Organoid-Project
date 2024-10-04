@@ -356,13 +356,14 @@ orig.stim
 
 # NNMT Feature plot
 cancer.features <- FeaturePlot(rcc10,
-                               features = c('CXCL14','CA9'),#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT','IGF2BP3','CXCL14'),
+                               features = c('EPOR','CA9'),#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT','IGF2BP3','CXCL14'),
                                reduction = 'umap',
                                label = T,
                                pt.size = 0.2,
                                repel = T,
                                order = T,
-                               min.cutoff = 1.5,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
                                split.by = 'orig.ident')
 cancer.features
 

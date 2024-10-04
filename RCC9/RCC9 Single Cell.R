@@ -34,22 +34,22 @@ setdir <- "/home/kzayne/Salami-Lab-RCC-Organoid-Project/"
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
 
 ### Cell markers file
-kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
+# mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
+# names(mrkr.list) <- kid.mrkrs$cell_name
+# 
+# for(i in 1:length(mrkr.list)){
+#   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
+# }
+
+kid.mrkrs <- read.csv("Mohan Normal Kidney Cell Markers.csv",header = T) #Final kidney markers.csv
 kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
 mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
 names(mrkr.list) <- kid.mrkrs$cell_name
 
 for(i in 1:length(mrkr.list)){
   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
-}
-
-kid.mrkrs1 <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
-kid.mrkrs1 <- kid.mrkrs1[!kid.mrkrs1$cell_name %in% c("Neutrophil","Cancer stem cell"),]
-mrkr.list1 <- as.list(as.character(kid.mrkrs1$Symbol))
-names(mrkr.list1) <- kid.mrkrs1$cell_name
-
-for(i in 1:length(mrkr.list1)){
-  mrkr.list1[[i]] <- unlist(strsplit(mrkr.list1[[i]], "," ))
 }
 
 # mrkr.list1[['Tumor']] = c(mrkr.list1[['Proximal tubule-1']],'NNMT','CA9','KRT19','KRT18')
@@ -238,6 +238,14 @@ orig.stim <- DimPlot(rcc9, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
+DoHeatmap(rcc9,
+          features = c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#VariableFeatures(rcc9)[1:100],
+          #cells = 1:500,
+          group.by = 'seurat_clusters',
+          size = 4,
+          angle = 90) +
+  ggtitle('RCC9 Heatmap Tissue')
+
 # NNMT Feature plot
 cancer.features <- FeaturePlot(rcc9,
                                features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
@@ -245,6 +253,8 @@ cancer.features <- FeaturePlot(rcc9,
                                label = T,
                                repel = T,
                                order = T,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
                                split.by = 'orig.ident')
 cancer.features
 
