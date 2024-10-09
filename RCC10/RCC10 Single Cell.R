@@ -1,6 +1,6 @@
 rm(list=ls())
 
-.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2/")
+.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/4.2/")
 
 library(patchwork)
 library(dplyr)
@@ -26,7 +26,8 @@ library(doBy)
 library(EnhancedVolcano)
 library(edgeR)
 library(RColorBrewer)
-library(monocle3)
+library(infercnv)
+# library(monocle3)
 # library(metap)
 # library(multtest)
 
@@ -437,6 +438,38 @@ custom2 <- DimPlot(rcc10,
 custom2
 
 ###############################################################################|
+### Agregate by tissue and cluster
+rcc10$orig.cluster <- paste0(rcc10$orig.ident,'-',rcc10$seurat_clusters)
+rcc10.agg <- AggregateExpression(rcc10,
+  return.seurat = T,
+  group.by = "orig.cluster",
+  normalization.method = "LogNormalize",
+  scale.factor = 10000,
+  margin = 1,
+  verbose = F
+)
+rcc10.agg <- NormalizeData(rcc10.agg, verbose = FALSE) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(pc.genes = rcc10.pre@var.genes, npcs = 20, verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = F)
+
+# Add other columns for break down
+rcc10.agg$orig.ident <- gsub('(*.)-.*','\\1',rcc10.agg$orig.cluster)
+rcc10.agg$cluster <- gsub('.*-','',rcc10.agg$orig.cluster)
+
+
+aggDim <- DimPlot(rcc10.agg,
+                  reduction = 'umap',
+                  label = T,
+                  repel = T,
+                  pt.size = 0.5,
+                  label.size = 3,
+                  order = T) +
+  NoLegend() +
+  ggtitle('RCC10 Aggregated cluster by tissue')
+
+###############################################################################|
 ### Find Markers
 rcc10.join <- JoinLayers(rcc10)
 rcc10.allMrkrs <- FindAllMarkers(rcc10.join,
@@ -488,12 +521,34 @@ pct.cluster <- ggplot(pt2, aes(x = Var2, y = Freq, fill = Var1)) +
   ggtitle('rcc10 Percent Cluster Composition of Samples')
 
 ### Generate heatmap of genes
-rcc10.allMrkrs %>%
-  group_by(cluster) %>%
-  dplyr::filter(avg_log2FC > 1) %>%
-  slice_head(n = 10) %>%
-  ungroup() -> top10
-DoHeatmap(rcc10,group.by = 'cellassign', features = top10$gene) + NoLegend()
+# Get gene list of cell types for heatmap
+gene.list <- c()
+for(i in 1:nrow(kid.mrkrs)){
+  gene.list <- c(gene.list, kid.mrkrs[i,]$Symbol)
+}
+gene.list <- strsplit(gene.list,',')
+gene.list <- unlist(gene.list)  
+
+# Plot heatmap
+feature_heatmapn <- DoHeatmap(subset(rcc10,subset = orig.ident == 'RCC10N Tissue'),
+                             features = gene.list,#VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+                             #cells = 1:500,
+                             group.by = 'cellassign',#'seurat_clusters',
+                             size = 4,
+                             angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC10N Heatmap Tissue')
+
+# Plot heatmap
+feature_heatmapt1 <- DoHeatmap(subset(rcc10,subset = orig.ident == 'RCC10T1 Tissue'),
+                              features = gene.list,#VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+                              #cells = 1:500,
+                              group.by = 'cellassign',#'seurat_clusters',
+                              size = 4,
+                              angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC10T1 Heatmap Tissue')
+
 
 ### Get average gene expression by seurat cluster
 geneExpCluster <- AggregateExpression(rcc10,

@@ -238,15 +238,25 @@ orig.stim <- DimPlot(rcc9, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
-DoHeatmap(rcc9,
-          features = c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#VariableFeatures(rcc9)[1:100],
+# Get gene list of cell types for heatmap
+gene.list <- c()
+for(i in 1:nrow(kid.mrkrs)){
+  gene.list <- c(gene.list, kid.mrkrs[i,]$Symbol)
+}
+gene.list <- strsplit(gene.list,',')
+gene.list <- unlist(gene.list)  
+
+# Plot heatmap
+feature_heatmap <- DoHeatmap(rcc9,
+          features = gene.list,#VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
           #cells = 1:500,
-          group.by = 'seurat_clusters',
+          group.by = 'cellassign',#'seurat_clusters',
           size = 4,
           angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
   ggtitle('RCC9 Heatmap Tissue')
 
-# NNMT Feature plot
+ # NNMT Feature plot
 cancer.features <- FeaturePlot(rcc9,
                                features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
                                reduction = 'umap',

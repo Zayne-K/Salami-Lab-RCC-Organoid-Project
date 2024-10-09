@@ -1,5 +1,82 @@
+rm(list=ls())
+
+.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/4.2/")
+
+library(patchwork)
+library(dplyr)
+library(Seurat)
+library(SeuratObject)
+library(readxl)
+library(HGNChelper)
+library(DESeq2)
+library(MAST)
+library(scCustomize)
+library(ggplot2)
+library(ggplotify)
+library(ggpubr)
+library(glmGamPoi)
+library(sctransform)
+library(harmony)
+library(cowplot)
+library(DoubletFinder)
+library(Cairo)
+library(fgsea)
+library(GSA)
+library(doBy)
+library(EnhancedVolcano)
+library(edgeR)
+library(RColorBrewer)
+# library(monocle3)
+# library(metap)
+# library(multtest)
+
+setdir <- "/home/kzayne/Salami-Lab-RCC-Organoid-Project/"
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+### Cell markers file
+# kid.mrkrs <- read.csv("Updated Kidney Markers original.csv",header = T) #Final kidney markers.csv
+# kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
+# mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
+# names(mrkr.list) <- kid.mrkrs$cell_name
+# 
+# for(i in 1:length(mrkr.list)){
+#   mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
+# }
+
+kid.mrkrs <- read.csv("Mohan Normal Kidney Cell Markers.csv",header = T) #Final kidney markers.csv
+kid.mrkrs <- kid.mrkrs[!kid.mrkrs$cell_name %in% c("Neutrophil","Cancer stem cell"),]
+mrkr.list <- as.list(as.character(kid.mrkrs$Symbol))
+names(mrkr.list) <- kid.mrkrs$cell_name
+
+for(i in 1:length(mrkr.list)){
+  mrkr.list[[i]] <- unlist(strsplit(mrkr.list[[i]], "," ))
+}
+
+# mrkr.list1[['Tumor']] = c(mrkr.list1[['Proximal tubule-1']],'NNMT','CA9','KRT19','KRT18')
+
+# Hallmark cancer
+hm.sym <- GSA.read.gmt("/home/kzayne/Salami-Lab-RCC-Organoid-Project/h.all.v7.4.symbols.gmt.txt")    # download all available genesets genesymbols .gmt file from MSigDB
+names(hm.sym$genesets) <- hm.sym$geneset.names
+hm.sym <- hm.sym$genesets
+names(hm.sym) <- gsub('HALLMARK_','',names(hm.sym))
+
 ################################## RCC5
 #####
+##### Load Data
+rcc5n.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5N_tissue/outs/filtered_feature_bc_matrix')
+rcc5n <- CreateSeuratObject(counts = rcc5n.data, project = 'RCC5N')
+
+rcc5t1.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1_tissue/outs/filtered_feature_bc_matrix')
+rcc5t1 <- CreateSeuratObject(counts = rcc5t1.data, project = 'RCC5T1')
+
+rcc5n_org.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5N_org/outs/filtered_feature_bc_matrix')
+rcc5n_org <- CreateSeuratObject(counts = rcc5n_org.data, project = 'RCC5N_org')
+
+rcc5t1t2_org_pre.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1T2_org_nerat_treat_no/outs/filtered_feature_bc_matrix')
+rcc5t1t2_org_preTreat <- CreateSeuratObject(counts = rcc5t1t2_org_pre.data, project = 'RCC5_org Pre_Treat')
+
+rcc5t1t2_org_post.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5T1T2_org_nerat_treat/outs/filtered_feature_bc_matrix')
+rcc5t1t2_org_postTreat <- CreateSeuratObject(counts = rcc5t1t2_org_post.data, project = 'RCC5_org Post_Treat')
+
 ##### Perform QC, Filtering, and Doublet finder on RCC5 samples
 rcc5n[['percent.mt']] <- PercentageFeatureSet(rcc5n, pattern = '^MT-')
 rcc5t1[['percent.mt']] <- PercentageFeatureSet(rcc5t1, pattern = '^MT-')
@@ -37,7 +114,6 @@ rcc5t1t2_org_preTreat$multRate <- 0.016
 rcc5t1t2_org_postTreat$multRate <- 0.004
 
 # Run standard workflow and doublet finder on each sample
-#####
 samples <- c(rcc5n,rcc5t1,rcc5n_org,rcc5t1t2_org_preTreat,rcc5t1t2_org_postTreat)
 
 rcc5n <- NormalizeData(rcc5n, verbose = F) %>%
@@ -322,7 +398,11 @@ p1o | p2o
 # 
 # qcPlots <- ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2)
 ElbowPlot(rcc5)
-dimPost <- DimPlot(rcc5, group.by = 'seurat_clusters', split.by = 'orig.ident', label = T, reduction = 'harmony')
+dimPost <- DimPlot(rcc5,
+                   group.by = 'seurat_clusters',
+                   split.by = 'orig.ident',
+                   label = T,
+                   reduction = 'umap')
 
 # set.seed(555)
 # rcc5 <- rcc5 %>% 
@@ -332,108 +412,6 @@ dimPost <- DimPlot(rcc5, group.by = 'seurat_clusters', split.by = 'orig.ident', 
 #   identity()
 # rcc5$orig.ident <- factor(rcc5$orig.ident,
 #                           levels = c('RCC5N_org','RCC5N','RCC5T1','RCC5_org Pre_Treat','RCC5_org Post_Treat'))
-
-# Run doublet finder
-#####
-suppressMessages(require(DoubletFinder))
-rcc5.split <- SplitObject(rcc5,split.by='orig.ident')
-
-for (i in 1:length(rcc5.split)) {
-  # print the sample we are on
-  print(paste0("Sample ",i))
-  
-  # Pre-process seurat object with standard seurat workflow
-  rcc.filt.sample <- NormalizeData(rcc5.split[[i]])
-  rcc.filt.sample <- FindVariableFeatures(rcc.filt.sample)
-  rcc.filt.sample <- ScaleData(rcc.filt.sample)
-  rcc.filt.sample <- RunPCA(rcc.filt.sample, nfeatures.print = 10)
-  
-  # Find significant PCs
-  stdv <- rcc.filt.sample[["pca"]]@stdev
-  sum.stdv <- sum(rcc.filt.sample[["pca"]]@stdev)
-  percent.stdv <- (stdv / sum.stdv) * 100
-  cumulative <- cumsum(percent.stdv)
-  co1 <- which(cumulative > 90 & percent.stdv < 5)[1]
-  co2 <- sort(which((percent.stdv[1:length(percent.stdv) - 1] -
-                       percent.stdv[2:length(percent.stdv)]) > 0.1),
-              decreasing = T)[1] + 1
-  min.pc <- min(co1, co2)
-  min.pc
-  
-  # finish pre-processing
-  rcc.filt.sample <- RunUMAP(rcc.filt.sample, dims = 1:min.pc)
-  rcc.filt.sample <- FindNeighbors(object = rcc.filt.sample, dims = 1:min.pc)
-  rcc.filt.sample <- FindClusters(object = rcc.filt.sample, resolution = 0.1)
-  
-  # pK identification (no ground-truth)
-  sweep.list <- paramSweep(rcc.filt.sample, PCs = 1:min.pc, num.cores = detectCores() - 1)
-  sweep.stats <- summarizeSweep(sweep.list)
-  bcmvn <- find.pK(sweep.stats)
-  
-  # Optimal pK is the max of the bomodality coefficent (BCmvn) distribution
-  bcmvn.max <- bcmvn[which.max(bcmvn$BCmetric),]
-  optimal.pk <- bcmvn.max$pK
-  optimal.pk <- as.numeric(levels(optimal.pk))[optimal.pk]
-  
-  ## Homotypic doublet proportion estimate
-  annotations <- rcc.filt.sample@meta.data$seurat_clusters
-  homotypic.prop <- modelHomotypic(annotations)
-  nExp.poi <- round(optimal.pk * nrow(rcc.filt.sample@meta.data)) ## Assuming 7.5% doublet formation rate - tailor for your dataset
-  nExp.poi.adj <- round(nExp.poi * (1 - homotypic.prop))
-  
-  # run DoubletFinder
-  rcc.filt.sample <- doubletFinder(seu = rcc.filt.sample,
-                                   PCs = 1:min.pc,
-                                   pK = optimal.pk,
-                                   nExp = nExp.poi.adj)
-  metadata <- rcc.filt.sample@meta.data
-  colnames(metadata)[ncol(metadata)] <- "doublet_finder" #ncol matches number of 'orig.ident' for this group
-  rcc.filt.sample@meta.data <- metadata
-  
-  # # subset and save
-  # rcc.filt.singlets <- subset(rcc.filt.sample, doublet_finder == "Singlet")
-  # rcc.filt.split[[i]] <- rcc.filt.singlets
-  # remove(rcc.filt.singlets)
-  rcc5.split[[i]] <- rcc.filt.sample
-}
-
-rcc5.DF.all <- merge(x = rcc5.split[[1]],
-                     y = c(rcc5.split[[2]], rcc5.split[[3]], rcc5.split[[4]],
-                           rcc5.split[[5]]),
-                     project = "RCC5",
-                     merge.data = T)
-rcc5.DF.all
-rcc5.DF.join <- JoinLayers(rcc5.DF.all)
-rcc5.DF.join <- RunPCA(rcc5.DF.join)
-rcc5.DF.join <- RunUMAP(rcc5.DF.join, dims = 1:10, verbose = F)
-
-DF.name = colnames(rcc5.DF.join@meta.data)[grepl("doublet_finder", colnames(rcc5.DF.join@meta.data))]
-
-cowplot::plot_grid(ncol = 2, DimPlot(rcc5.DF.join, group.by = "orig.ident") + NoAxes(),
-                   DimPlot(rcc5.DF.join, group.by = DF.name) + NoAxes())
-
-VlnPlot(rcc5.DF.all, features = "nFeature_RNA", group.by = DF.name, pt.size = 0.1)
-
-rcc5.filt = rcc5.DF.join[,rcc5.DF.join@meta.data$doublet_finder == "Singlet"]
-dim(rcc5.filt)
-#####
-
-# Violin plots
-VlnPlot(rcc5.filt, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
-
-# Scatter plots
-plot1 <- FeatureScatter(rcc5.filt, feature1 = "nCount_RNA", feature2 = "percent.mt")
-plot1
-
-# Scatter plots
-plot2 <- FeatureScatter(rcc5.filt, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
-plot2
-
-violinPost <- VlnPlot(rcc5.filt, features = c('nCount_RNA','nFeature_RNA','percent.mt'),group.by = 'orig.ident',pt.size = 0.1)
-
-p1o <- DimPlot(object = rcc5.filt, reduction = "pca", pt.size = .1, group.by = "orig.ident")
-p2o <- VlnPlot(object = rcc5.filt, features = "PC_1", group.by = "orig.ident", pt.size = .1)
-p1o | p2o
 
 # set.seed(555)
 # rcc5.filt <- rcc5.filt %>%
@@ -445,17 +423,15 @@ p1o | p2o
 # qcPlots.postFilter <- ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2)
 # ElbowPlot(rcc5.filt)
 
-dimDF <- DimPlot(rcc5.filt, group.by = 'seurat_clusters', split.by = 'orig.ident', label = T, reduction = 'pca')
-
 # Visualization
-orig.stim <- DimPlot(rcc5.filt, reduction = "umap", label = TRUE, repel = TRUE,
+orig.stim <- DimPlot(rcc5, reduction = "umap", label = TRUE, repel = TRUE,
                      split.by = "orig.ident",
                      group.by = 'seurat_clusters',pt.size = 0.5,label.size = 5,order = T) +
   ggtitle("By seurat clusters")
 orig.stim
 
 # NNMT Feature plot
-cancer.features <- FeaturePlot(rcc5.filt,
+cancer.features <- FeaturePlot(rcc5,
                                features = c('NDUFA4L2','CA9','VEGFA','EGFR'),
                                reduction = 'umap',
                                label = T,
@@ -464,9 +440,9 @@ cancer.features <- FeaturePlot(rcc5.filt,
                                split.by = 'orig.ident')
 cancer.features
 
-condition <- DimPlot(rcc5.filt, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
+condition <- DimPlot(rcc5, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
 condition
-clusters <- DimPlot(rcc5.filt, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 3,order=T) + ggtitle("By UMAP Clusters")
+clusters <- DimPlot(rcc5, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 3,order=T) + ggtitle("By UMAP Clusters")
 clusters
 
 ggarrange(ggarrange(condition,clusters,nrow=1),orig.stim,ncol=1)
@@ -519,9 +495,15 @@ rcc5.allMrkrs <- FindAllMarkers(rcc5.join,
                                 min.pct = 0.25,
                                 min.diff.pct = 0.25,
                                 verbose = F)
+
+# Top 10 genes per cluster
 top10 <- rcc5.allMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
-# split dataframe into list if you find that convenient
-top10.cids <- split(top10$gene, top10$cluster)
+top10.cids <- split(top10$gene, top10$cluster) # split to list
+
+# Top 5 genes per cluster
+top5 <- rcc5.allMrkrs %>% group_by(cluster) %>% top_n(-5, p_val_adj)
+top5.cids <- split(top5$gene, top5$cluster) # split to list
+
 cl.0413 <- top10[top10$cluster %in% c('0','4','13'),]
 
 rcc5.tumor <- subset(rcc5.join,subset = seurat_clusters %in% c('0','4','13'))
@@ -540,7 +522,6 @@ rcc5.tissue.c2.mrkrs <- FindMarkers(rcc5,
                                     min.diff.pct=0.25,
                                     verbose=F)
 rcc5.tissue.c2.mrkrs$genes <- rownames(rcc5.tissue.c2.mrkrs)
-
 
 # Cell Percentage Plots
 rcc5@meta.data$cellassign <- ifelse(rcc5@meta.data$cellassign == 'Tumor',
@@ -581,6 +562,27 @@ pct.cluster <- ggplot(pt2, aes(x = Var2, y = Freq, fill = Var1)) +
   theme(legend.title = element_blank()) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
   ggtitle('RCC5 Percent Cluster Composition of Samples')
+
+### Generate heatmap of genes
+# Get gene list of cell types for heatmap
+gene.list <- c()
+for(i in 1:nrow(kid.mrkrs)){
+  gene.list <- c(gene.list, kid.mrkrs[i,]$Symbol)
+}
+gene.list <- strsplit(gene.list,',')
+gene.list <- unlist(gene.list)  
+gene.3p <- c('FHIT','RASSF1A','TUSC2','FUS1','SEMA3B','SEMA3F','RARB')
+
+# Plot heatmap
+feature_heatmap <- DoHeatmap(rcc5,
+                              features = top5$gene,#c(gene.list,gene.3p),VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+                              #cells = 1:500,
+                              group.by = 'seurat_clusters',#,cellassign
+                              size = 4,
+                              angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC5 Heatmap Clusters w/ Top 5 features by cluster') +
+  scale_fill_gradientn(colors = c("blue", "white", "red"))
 
 # custom2 <- DimPlot(rcc5.orig, reduction = "umap", label = TRUE, repel = TRUE,
 #                    split.by = 'orig.ident',
