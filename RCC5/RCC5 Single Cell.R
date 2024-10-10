@@ -506,7 +506,30 @@ top5.cids <- split(top5$gene, top5$cluster) # split to list
 
 cl.0413 <- top10[top10$cluster %in% c('0','4','13'),]
 
-rcc5.tumor <- subset(rcc5.join,subset = seurat_clusters %in% c('0','4','13'))
+###############################################################################|
+### Tumor cluster only analysis
+rcc5.tumor <- subset(rcc5,subset = seurat_clusters %in% c('0','4','8','13'))
+rcc5.tumor.join <- JoinLayers(rcc5.tumor)
+rcc5.tumorMrkrs <- FindAllMarkers(rcc5.tumor.join,
+                                  min.pct=0.25,
+                                  min.diff.pct = 0.25,
+                                  verbose = F)
+# Top 10 genes per cluster
+tumor.top10 <- rcc5.tumorMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
+tumor.top10.cids <- split(tumor.top10$gene, tumor.top10$cluster) # split to list
+
+# Heatmap
+tumor_heatmap <- DoHeatmap(rcc5.tumor,
+                             features = tumor.top10$gene,#c(gene.list,gene.3p),VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+                             #cells = 1:500,
+                             group.by = 'seurat_clusters',#,cellassign
+                             size = 4,
+                             angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC5 Heatmap Tumor Clusters w/ Top 5 features by cluster') +
+  scale_fill_gradientn(colors = c("blue", "white", "red"))
+
+
 FeaturePlot(rcc5.tumor,
             features = c('CA9','NDUFA4L2'),
             split.by = 'seurat_clusters',
