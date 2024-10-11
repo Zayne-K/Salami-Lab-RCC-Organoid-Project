@@ -472,6 +472,7 @@ for(j in unique(sctype_scores$cluster)){
 # rcc5$ca9 <- rcc5@assays$RNA$scale.data['CA9',]
 # rcc5$cellassign <- ifelse(rcc5$cellassign == 'Proximal tubular cell' & rcc5$ca9 > 0,'Proximal Tubular cell + CA9',rcc5$cellassign)
 
+rcc5$orig.cell <- paste0(rcc5$orig.ident,' ',rcc5$cellassign)
 custom1 <- DimPlot(rcc5, reduction = "umap", label = TRUE, repel = TRUE,
                    split.by = "orig.ident",
                    group.by = 'cellassign',pt.size = 0.5,label.size = 3,order = T) +
@@ -508,12 +509,58 @@ cl.0413 <- top10[top10$cluster %in% c('0','4','13'),]
 
 ###############################################################################|
 ### Tumor cluster only analysis
+#####
+# Find markers
 rcc5.tumor <- subset(rcc5,subset = seurat_clusters %in% c('0','4','8','13'))
 rcc5.tumor.join <- JoinLayers(rcc5.tumor)
 rcc5.tumorMrkrs <- FindAllMarkers(rcc5.tumor.join,
                                   min.pct=0.25,
                                   min.diff.pct = 0.25,
                                   verbose = F)
+rcc5.0v4 <- FindMarkers(rcc5.tumor.join,
+                        group.by = 'cellassign',
+                        ident.1 = 'Tumor 0',
+                        ident.2 = 'Tumor 4',
+                        min.pct = 0.25,
+                        min.diff.pct = 0.25,
+                        verbose = F)
+rcc5.0v8 <- FindMarkers(rcc5.tumor.join,
+                        group.by = 'cellassign',
+                        ident.1 = 'Tumor 0',
+                        ident.2 = 'Tumor 8',
+                        min.pct = 0.25,
+                        min.diff.pct = 0.25,
+                        verbose = F)
+rcc5.0v13 <- FindMarkers(rcc5.tumor.join,
+                        group.by = 'cellassign',
+                        ident.1 = 'Tumor 0',
+                        ident.2 = 'Tumor 13',
+                        min.pct = 0.25,
+                        min.diff.pct = 0.25,
+                        verbose = F)
+rcc5.4v8 <- FindMarkers(rcc5.tumor.join,
+                        group.by = 'cellassign',
+                        ident.1 = 'Tumor 4',
+                        ident.2 = 'Tumor 8',
+                        min.pct = 0.25,
+                        min.diff.pct = 0.25,
+                        verbose = F)
+rcc5.4v13 <- FindMarkers(rcc5.tumor.join,
+                        group.by = 'cellassign',
+                        ident.1 = 'Tumor 4',
+                        ident.2 = 'Tumor 13',
+                        min.pct = 0.25,
+                        min.diff.pct = 0.25,
+                        verbose = F)
+rcc5.8v13 <- FindMarkers(rcc5.tumor.join,
+                        group.by = 'cellassign',
+                        ident.1 = 'Tumor 8',
+                        ident.2 = 'Tumor 13',
+                        min.pct = 0.25,
+                        min.diff.pct = 0.25,
+                        verbose = F)
+rm(rcc5.tumor.join)
+
 # Top 10 genes per cluster
 tumor.top10 <- rcc5.tumorMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
 tumor.top10.cids <- split(tumor.top10$gene, tumor.top10$cluster) # split to list
@@ -522,14 +569,286 @@ tumor.top10.cids <- split(tumor.top10$gene, tumor.top10$cluster) # split to list
 tumor_heatmap <- DoHeatmap(rcc5.tumor,
                              features = tumor.top10$gene,#c(gene.list,gene.3p),VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
                              #cells = 1:500,
-                             group.by = 'seurat_clusters',#,cellassign
+                             group.by = 'cellassign',#seurat_clusters,
                              size = 4,
-                             angle = 90) +
+                             angle = 45) +
   #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
   ggtitle('RCC5 Heatmap Tumor Clusters w/ Top 5 features by cluster') +
   scale_fill_gradientn(colors = c("blue", "white", "red"))
 
+# cluster <- rcc5.tumorMrkrs[rcc5.tumorMrkrs$cluster == '13',]
+# cluster <- cluster %>% arrange(desc(avg_log2FC))
+# ranks <- cluster$avg_log2FC
+# names(ranks) <- cluster$gene
+# pathRes13 <- fgsea(hm.sym,
+#                    ranks,
+#                    minSize = 15,
+#                    maxSize = 500)
+# pathRes13$comp <- 'Tumor 13'
 
+cluster <- rcc5.8v13
+cluster <- cluster %>% arrange(desc(avg_log2FC))
+ranks <- cluster$avg_log2FC
+names(ranks) <- rownames(cluster)
+pathResF <- fgsea(hm.sym,
+                   ranks,
+                   minSize = 15,
+                   maxSize = 500)
+pathResF$comp <- 'Tumor 8 vs 13'
+
+### Pathway bubble plot - note: need to run for all clusters
+tops <- rbind(pathRes0,pathRes4,pathRes8,pathRes13)
+tops <- tops[tops$padj < 0.05,]
+tops <- tops[,c(1:7,9)]
+tops <- tops[!grepl("HALLMARK",tops$pathway),]
+tops$pathway <- gsub("HALLMARK_","",tops$pathway)
+tops$pathway <- gsub("_"," ",tops$pathway)
+# tops <- tops[!grepl("ESTROGEN",tops$pathway),]
+tops <- tops[order(tops$padj,decreasing = F),]
+tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
+
+tops$comp <- factor(tops$comp,
+                    levels = c('Tumor 0','Tumor 4','Tumor 8','Tumor 13'))
+
+tops$NES <- as.numeric(round(tops$NES,digits=2))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Up",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Down","Not significant")),
+                         levels = c("Up", "Down","Not significant"))
+tops <- tops[!tops$Direction=="Not significant",]
+tops$absNES <- abs(tops$NES)
+
+
+fill <- c("red","#3182bd")
+
+g1 <- ggplot(tops, aes(x = comp, y = pathway, size = absNES, fill = Direction)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  scale_fill_manual(values =fill) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.text=element_text(size=10,colour = "black")) + scale_y_discrete(limits = rev(levels(factor(tops$pathway)))) +
+  scale_size(range = c(3,8),breaks = c(1,1.5,2)) +
+  
+  ggtitle("Signigicant Hallmark Pathways for each Tumor cluster") +
+  xlab("")+ylab("")+theme_bw() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x.top = element_text(angle = 45, vjust = 0, hjust = 0,face="bold",size=10,colour = "black")) +
+  theme(axis.text.y = element_text(size =  10,colour = "black")) +
+  theme(axis.text=element_text(size=20), legend.text=element_text(size=12))+
+  guides(size=guide_legend(title="Normalized Enrichment Score (NES)", title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) +
+  guides(fill=guide_legend(title="Direction", override.aes = list(size=10), title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) #+ coord_equal(2/6)
+g1
+
+### Pathway Comparison bubble plot - note: need to run for all clusters
+tops <- rbind(pathResA,pathResB,pathResC,pathResD,pathResE,pathResF)
+tops <- tops[tops$padj < 0.05,]
+tops <- tops[,c(1:7,9)]
+tops <- tops[!grepl("HALLMARK",tops$pathway),]
+tops$pathway <- gsub("HALLMARK_","",tops$pathway)
+tops$pathway <- gsub("_"," ",tops$pathway)
+# tops <- tops[!grepl("ESTROGEN",tops$pathway),]
+tops <- tops[order(tops$padj,decreasing = F),]
+tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
+
+tops$comp <- factor(tops$comp)
+
+tops$NES <- as.numeric(round(tops$NES,digits=2))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Up",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Down","Not significant")),
+                         levels = c("Up", "Down","Not significant"))
+tops <- tops[!tops$Direction=="Not significant",]
+tops$absNES <- abs(tops$NES)
+
+
+fill <- c("red","#3182bd")
+
+g2 <- ggplot(tops, aes(x = comp, y = pathway, size = absNES, fill = Direction)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  scale_fill_manual(values =fill) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.text=element_text(size=10,colour = "black")) + scale_y_discrete(limits = rev(levels(factor(tops$pathway)))) +
+  scale_size(range = c(3,8),breaks = c(1,1.5,2)) +
+  
+  ggtitle("Signigicant Hallmark Pathways between each Tumor cluster") +
+  xlab("")+ylab("")+theme_bw() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x.top = element_text(angle = 45, vjust = 0, hjust = 0,face="bold",size=10,colour = "black")) +
+  theme(axis.text.y = element_text(size =  10,colour = "black")) +
+  theme(axis.text=element_text(size=20), legend.text=element_text(size=12))+
+  guides(size=guide_legend(title="Normalized Enrichment Score (NES)", title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) +
+  guides(fill=guide_legend(title="Direction", override.aes = list(size=10), title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) + coord_equal(1/3)
+g2
+
+#####
+
+###############################################################################|
+### Organoid Tumor vs PT-2
+#####
+rcc5.comp <- subset(rcc5,subset = orig.cell %in% c('RCC5N_org PT-2',
+                                                   'RCC5_org Pre_Treat Tumor 0',
+                                                   'RCC5_org Pre_Treat Tumor 4',
+                                                   'RCC5_org Pre_Treat Tumor 8',
+                                                   'RCC5_org Pre_Treat Tumor 13',
+                                                   'RCC5_org Post_Treat Tumor 0',
+                                                   'RCC5_org Post_Treat Tumor 4',
+                                                   'RCC5_org Post_Treat Tumor 8',
+                                                   'RCC5_org Post_Treat Tumor 13'))
+rcc5.comp.join <- JoinLayers(rcc5.comp)
+rcc5.compMrkrs <- FindAllMarkers(rcc5.comp.join,
+                                 min.pct = 0.25,
+                                 min.diff.pct = 0.25,
+                                 verbose = F)
+rcc5.pre0vPT2 <- FindMarkers(rcc5.comp.join,
+                             group.by = 'orig.cell',
+                             ident.1 = 'RCC5_org Pre_Treat Tumor 0',
+                             ident.2 = 'RCC5N_org PT-2',
+                             min.pct = 0.25,
+                             min.diff.pct = 0.25,
+                             verbose = F)
+rcc5.pre4vPT2 <- FindMarkers(rcc5.comp.join,
+                             group.by = 'orig.cell',
+                             ident.1 = 'RCC5_org Pre_Treat Tumor 4',
+                             ident.2 = 'RCC5N_org PT-2',
+                             min.pct = 0.25,
+                             min.diff.pct = 0.25,
+                             verbose = F)
+rcc5.pre8vPT2 <- FindMarkers(rcc5.comp.join,
+                             group.by = 'orig.cell',
+                             ident.1 = 'RCC5_org Pre_Treat Tumor 8',
+                             ident.2 = 'RCC5N_org PT-2',
+                             min.pct = 0.25,
+                             min.diff.pct = 0.25,
+                             verbose = F)
+rcc5.pre13vPT2 <- FindMarkers(rcc5.comp.join,
+                             group.by = 'orig.cell',
+                             ident.1 = 'RCC5_org Pre_Treat Tumor 13',
+                             ident.2 = 'RCC5N_org PT-2',
+                             min.pct = 0.25,
+                             min.diff.pct = 0.25,
+                             verbose = F)
+rcc5.post0vPT2 <- FindMarkers(rcc5.comp.join,
+                             group.by = 'orig.cell',
+                             ident.1 = 'RCC5_org Post_Treat Tumor 0',
+                             ident.2 = 'RCC5N_org PT-2',
+                             min.pct = 0.25,
+                             min.diff.pct = 0.25,
+                             verbose = F)
+rcc5.post4vPT2 <- FindMarkers(rcc5.comp.join,
+                              group.by = 'orig.cell',
+                              ident.1 = 'RCC5_org Post_Treat Tumor 4',
+                              ident.2 = 'RCC5N_org PT-2',
+                              min.pct = 0.25,
+                              min.diff.pct = 0.25,
+                              verbose = F)
+rcc5.post8vPT2 <- FindMarkers(rcc5.comp.join,
+                              group.by = 'orig.cell',
+                              ident.1 = 'RCC5_org Post_Treat Tumor 8',
+                              ident.2 = 'RCC5N_org PT-2',
+                              min.pct = 0.25,
+                              min.diff.pct = 0.25,
+                              verbose = F)
+rcc5.post13vPT2 <- FindMarkers(rcc5.comp.join,
+                              group.by = 'orig.cell',
+                              ident.1 = 'RCC5_org Post_Treat Tumor 13',
+                              ident.2 = 'RCC5N_org PT-2',
+                              min.pct = 0.25,
+                              min.diff.pct = 0.25,
+                              verbose = F)
+rm(rcc5.comp.join)
+
+# Top 10 Genes for each organoid group plus heatmap
+comp.top10 <- rcc5.compMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
+comp.top10.cids <- split(comp.top10$gene, comp.top10$cluster) # split to list
+
+organoid_heatmap <- DoHeatmap(rcc5.comp,
+                           features = comp.top10$gene,#c(gene.list,gene.3p),VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+                           #cells = 1:500,
+                           group.by = 'orig.cell',#seurat_clusters,cellassign
+                           size = 4,
+                           angle = 45) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC5 Heatmap Organoid Tumor and PT-2 Clusters Top 10 genes') +
+  scale_fill_gradientn(colors = c("blue", "white", "red"))
+
+# Pathway analysis
+cluster <- rcc5.post0vPT2
+cluster <- cluster %>% arrange(desc(avg_log2FC))
+ranks <- cluster$avg_log2FC
+names(ranks) <- rownames(cluster)
+pathResPost1 <- fgsea(hm.sym,
+                  ranks,
+                  minSize = 15,
+                  maxSize = 500)
+pathResPost1$comp <- 'Post-Treat Tumor 0 vs PT-2'
+
+### Pathway bubble plot - note: need to run for all clusters
+tops <- rbind(pathResPre1,pathResPre2,pathResPre3,pathResPre4,
+              pathResPost1,pathResPost2,pathResPost3,pathResPost4)
+tops <- tops[tops$padj < 0.05,]
+tops <- tops[,c(1:7,9)]
+tops <- tops[!grepl("HALLMARK",tops$pathway),]
+tops$pathway <- gsub("HALLMARK_","",tops$pathway)
+tops$pathway <- gsub("_"," ",tops$pathway)
+# tops <- tops[!grepl("ESTROGEN",tops$pathway),]
+tops <- tops[order(tops$padj,decreasing = F),]
+tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
+
+tops$comp <- factor(tops$comp)
+
+tops$NES <- as.numeric(round(tops$NES,digits=2))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Up in Tumor",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Down in Tumor","Not significant")),
+                         levels = c("Up in Tumor", "Down in Tumor","Not significant"))
+tops <- tops[!tops$Direction=="Not significant",]
+tops$absNES <- abs(tops$NES)
+
+
+fill <- c("red","#3182bd")
+
+g3 <- ggplot(tops, aes(x = comp, y = pathway, size = absNES, fill = Direction)) +
+  geom_point(shape = 21, alpha = 0.7) +
+  scale_fill_manual(values =fill) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.text=element_text(size=10,colour = "black")) + scale_y_discrete(limits = rev(levels(factor(tops$pathway)))) +
+  scale_size(range = c(3,8),breaks = c(1,1.5,2)) +
+  
+  ggtitle("Signigicant Hallmark Pathways for Organoid Pre and Post Treat to Normal") +
+  xlab("")+ylab("")+theme_bw() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x.top = element_text(angle = 45, vjust = 0, hjust = 0,face="bold",size=10,colour = "black")) +
+  theme(axis.text.y = element_text(size =  10,colour = "black")) +
+  theme(axis.text=element_text(size=20), legend.text=element_text(size=12))+
+  guides(size=guide_legend(title="Normalized Enrichment Score (NES)", title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) +
+  guides(fill=guide_legend(title="Direction", override.aes = list(size=10), title.theme = element_text(
+    size = 12,
+    colour = "black",
+    face = "bold",
+    angle = 0))) #+ coord_equal(2/6)
+g3
+
+
+#####
 FeaturePlot(rcc5.tumor,
             features = c('CA9','NDUFA4L2'),
             split.by = 'seurat_clusters',
