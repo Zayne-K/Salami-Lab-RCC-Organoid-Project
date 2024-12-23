@@ -450,6 +450,9 @@ for(j in unique(sctype_scores$cluster)){
 }
 # rcc3$ca9 <- rcc3@assays$RNA$scale.data['CA9',]
 # rcc3$cellassign <- ifelse(rcc3$cellassign == 'Proximal tubular cell' & rcc3$ca9 > 0,'Proximal Tubular cell + CA9',rcc3$cellassign)
+rcc3@meta.data$cellassign <- ifelse(rcc3@meta.data$cellassign == 'Tumor',
+                                    paste0(rcc3@meta.data$cellassign,' ',rcc3@meta.data$seurat_clusters),
+                                    rcc3@meta.data$cellassign)
 
 # Get gene list of cell types for heatmap
 gene.list <- c()
@@ -550,9 +553,6 @@ top10 <- rcc3.allMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
 top10.cids <- split(top10$gene, top10$cluster)
 
 ### Cell Percentage Plots
-rcc3@meta.data$cellassign <- ifelse(rcc3@meta.data$cellassign == 'Tumor',
-                                    paste0(rcc3@meta.data$cellassign,' ',rcc3@meta.data$seurat_clusters),
-                                    rcc3@meta.data$cellassign)
 pt <- table(rcc3$cellassign, rcc3$orig.ident)
 pt <- as.data.frame(pt)
 pt$Var1 <- as.character(pt$Var1)

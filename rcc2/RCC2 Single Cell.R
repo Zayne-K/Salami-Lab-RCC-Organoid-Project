@@ -1,6 +1,9 @@
 rm(list=ls())
 
-.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2/")
+myPaths <- .libPaths()
+myPaths <- c(myPaths,"/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2/")
+myPaths <- c(myPaths[length(myPaths)],myPaths[1:length(myPaths)-1])
+.libPaths(myPaths)
 
 library(patchwork)
 library(dplyr)
@@ -96,8 +99,9 @@ rcc2t2.filt <- subset(rcc2t2,
 
 ###############################################################################|
 ### Run Doublet Finder
-# RCC2N doublet finder; 2545 cells -> 2541 cells
-rcc2n.filt$multRate <- 0.0016 # from 10X based on cells recovered
+#####
+# RCC2N doublet finder; 2545 cells -> 2508 cells
+rcc2n.filt$multRate <- 0.016 # from 10X based on cells recovered
 rcc2n.filt <- NormalizeData(rcc2n.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -145,8 +149,8 @@ DimPlot(rcc2n.filt,
 # Filter out doublets
 rcc2n.filt <- subset(rcc2n.filt, subset = DoubletID == 'Singlet')
 
-# RCC2T1 Doublet Finder; 4882 cells -> 4864 cells
-rcc2t1.filt$multRate <- 0.004 # from 10X based on cells recovered
+# RCC2T1 Doublet Finder; 4882 cells -> 4703 cells
+rcc2t1.filt$multRate <- 0.04 # from 10X based on cells recovered
 rcc2t1.filt <- NormalizeData(rcc2t1.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -194,8 +198,8 @@ names(rcc2t1.filt@meta.data)[names(rcc2t1.filt@meta.data) == colDF] <- 'DoubletI
 # Filter out doublets
 rcc2t1.filt <- subset(rcc2t1.filt, subset = DoubletID == 'Singlet')
 
-# RCC2T2 Doublet Finder; 23900 cells -> 23719 cells
-rcc2t2.filt$multRate <- 0.008 # from 10X based on cells recovered
+# RCC2T2 Doublet Finder; 23900 cells -> 22087 cells
+rcc2t2.filt$multRate <- 0.08 # from 10X based on cells recovered
 rcc2t2.filt <- NormalizeData(rcc2t2.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -242,6 +246,8 @@ names(rcc2t2.filt@meta.data)[names(rcc2t2.filt@meta.data) == colDF] <- 'DoubletI
 
 # Filter out doublets
 rcc2t2.filt <- subset(rcc2t2.filt, subset = DoubletID == 'Singlet')
+#####
+
 ###############################################################################|
 ### Combine all RCC2 objects
 # Merger normal and tissue data
@@ -295,18 +301,6 @@ orig.stim <- DimPlot(rcc2, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
-# NNMT Feature plot
-cancer.features <- FeaturePlot(rcc2,
-                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
-                               reduction = 'umap',
-                               label = T,
-                               repel = T,
-                               order = T,
-                               min.cutoff = 'q10',
-                               max.cutoff = 'q90',
-                               split.by = 'orig.ident')
-cancer.features
-
 condition <- DimPlot(rcc2, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
 condition
 clusters <- DimPlot(rcc2, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 3,order=T) + ggtitle("By UMAP Clusters")
@@ -339,6 +333,9 @@ for(j in unique(sctype_scores$cluster)){
 }
 # rcc2$ca9 <- rcc2@assays$RNA$scale.data['CA9',]
 # rcc2$cellassign <- ifelse(rcc2$cellassign == 'Proximal tubular cell' & rcc2$ca9 > 0,'Proximal Tubular cell + CA9',rcc2$cellassign)
+rcc2@meta.data$cellassign <- ifelse(rcc2@meta.data$cellassign == 'Tumor',
+                                    paste0(rcc2@meta.data$cellassign,' ',rcc2@meta.data$seurat_clusters),
+                                    rcc2@meta.data$cellassign)
 
 # Get gene list of cell types for heatmap
 gene.list <- c()
@@ -357,6 +354,18 @@ feature_heatmap <- DoHeatmap(rcc2,
                              angle = 90) +
   #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
   ggtitle('RCC2 Heatmap Tissue')
+
+# Feature plot
+cancer.features <- FeaturePlot(rcc2,
+                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
+                               reduction = 'umap',
+                               label = T,
+                               repel = T,
+                               order = T,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
+                               split.by = 'orig.ident')
+cancer.features
 
 custom1 <- DimPlot(rcc2,
                    reduction = "umap",
@@ -407,9 +416,6 @@ top10 <- rcc2.allMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
 top10.cids <- split(top10$gene, top10$cluster)
 
 ### Cell Percentage Plots
-rcc2@meta.data$cellassign <- ifelse(rcc2@meta.data$cellassign == 'Tumor',
-                                    paste0(rcc2@meta.data$cellassign,' ',rcc2@meta.data$seurat_clusters),
-                                    rcc2@meta.data$cellassign)
 pt <- table(rcc2$cellassign, rcc2$orig.ident)
 pt <- as.data.frame(pt)
 pt$Var1 <- as.character(pt$Var1)
@@ -446,15 +452,53 @@ pct.cluster <- ggplot(pt2, aes(x = Var2, y = Freq, fill = Var1)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
   ggtitle('RCC2 Percent Cluster Composition of Samples')
 
-### Get average gene expression by seurat cluster
-geneExpCluster <- AggregateExpression(rcc2,
-                                      group.by = 'seurat_clusters',
-                                      normalization.method = 'LogNormalize',
-                                      return.seurat = T,
-                                      verbose = F)
+### ssGSEA workflow
+# create column for orig.ident and cellassign
+rcc2$orig.cellassign <- paste0(rcc2$orig.ident,'.',rcc2$cellassign)
+
+# Get average gene expression by orig cellassign
+aggExpr <- AggregateExpression(rcc2,
+                               group.by = 'orig.cellassign',
+                               normalization.method = 'LogNormalize',
+                               return.seurat = T,
+                               verbose = F)
 #> returns a matrix of logNormalized summed counts by group
-geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
-geneCluster <- as.data.frame(geneCluster)
+# geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
+# geneCluster <- as.data.frame(geneCluster)
+
+
+### run escape ssGSEA workflow
+require(escape)
+require(dittoSeq)
+# enrich count data
+aggEnrich <- enrichIt(obj = aggExpr@assays$RNA$counts,
+                      gene.sets = hm.sym,
+                      method = 'ssGSEA',
+                      groups = 1000,
+                      cores = 2,
+                      min.size = 5)
+# add enriched counts back to object
+aggExpr <- AddMetaData(aggExpr, aggEnrich)
+# met.data <- merge(colData(geneExpCluster), aggEnrich, by = "row.names", all=TRUE)
+# row.names(met.data) <- met.data$Row.names
+# met.data$Row.names <- NULL
+# colData(geneExpCluster) <- met.data
+
+# add back annotations of orig.ident and cellasign
+aggExpr$orig.ident <- gsub('\\..*','',aggExpr$orig.ident)
+aggExpr$cellassign <- gsub('.*\\.','',aggExpr$orig.cellassign)
+
+# heatmap vizualization
+colors <- colorRampPalette(c("#FF4B20", "#FFB433", "#C6FDEC", "#7AC5FF", "#0348A6"))
+dittoHeatmap(aggExpr,
+             genes = NULL,
+             metas = names(aggEnrich),
+             order.by = 'orig.ident',
+             annot.by = c('cellassign','orig.ident'),
+             cluster_cols = F,
+             cluster_rows = F,
+             heatmap.colors = rev(colors(50)),
+             main = 'RCC2 Pathways by Aggregated Identity and Cellassign')
 
 ### Find gene differences between Normal and Tumor clusters/cell types
 # Tumor 1 vs Normal
