@@ -355,18 +355,25 @@ feature_heatmap <- DoHeatmap(rcc1,
   #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
   ggtitle('RCC1 Heatmap Tissue')
 
-# Feature plot
+### Feature plots
+# change Idents to cellassign
+Idents(rcc1) <- 'cellassign'
+
+# Plot feature - repeat as needed
 cancer.features <- FeaturePlot(rcc1,
-                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
+                               features = 'IGF2BP3',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
                                reduction = 'umap',
                                label = T,
                                repel = T,
                                order = T,
                                min.cutoff = 'q10',
                                max.cutoff = 'q90',
-                               split.by = 'orig.ident')
+                               split.by = 'orig.ident',
+                               cols = c('lightgray','red'))
 cancer.features
 
+# change Idents back to clusters
+Idents(rcc1) <- 'seurat_clusters'
 
 custom1 <- DimPlot(rcc1,
                    reduction = "umap",
@@ -453,15 +460,53 @@ pct.cluster <- ggplot(pt2, aes(x = Var2, y = Freq, fill = Var1)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
   ggtitle('RCC1 Percent Cluster Composition of Samples')
 
-### Get average gene expression by seurat cluster
-geneExpCluster <- AggregateExpression(rcc1,
-                                      group.by = 'seurat_clusters',
-                                      normalization.method = 'LogNormalize',
-                                      return.seurat = T,
-                                      verbose = F)
+### ssGSEA workflow
+# create column for orig.ident and cellassign
+rcc1$orig.cellassign <- paste0(rcc1$orig.ident,'.',rcc1$cellassign)
+
+# Get average gene expression by orig cellassign
+aggExpr <- AggregateExpression(rcc1,
+                               group.by = 'orig.cellassign',
+                               normalization.method = 'LogNormalize',
+                               return.seurat = T,
+                               verbose = F)
 #> returns a matrix of logNormalized summed counts by group
-geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
-geneCluster <- as.data.frame(geneCluster)
+# geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
+# geneCluster <- as.data.frame(geneCluster)
+
+
+### run escape ssGSEA workflow
+require(escape)
+require(dittoSeq)
+# enrich count data
+aggEnrich <- enrichIt(obj = aggExpr@assays$RNA$counts,
+                      gene.sets = hm.sym,
+                      method = 'ssGSEA',
+                      groups = 1000,
+                      cores = 2,
+                      min.size = 5)
+# add enriched counts back to object
+aggExpr <- AddMetaData(aggExpr, aggEnrich)
+# met.data <- merge(colData(geneExpCluster), aggEnrich, by = "row.names", all=TRUE)
+# row.names(met.data) <- met.data$Row.names
+# met.data$Row.names <- NULL
+# colData(geneExpCluster) <- met.data
+
+# add back annotations of orig.ident and cellasign
+aggExpr$orig.ident <- gsub('\\..*','',aggExpr$orig.ident)
+aggExpr$cellassign <- gsub('.*\\.','',aggExpr$orig.cellassign)
+
+# heatmap vizualization
+colors <- colorRampPalette(c("#FF4B20", "#FFB433", "#C6FDEC", "#7AC5FF", "#0348A6"))
+ssgsea <- dittoHeatmap(aggExpr,
+                       genes = NULL,
+                       metas = names(aggEnrich),
+                       order.by = 'orig.ident', #cellassign
+                       annot.by = c('cellassign','orig.ident'),
+                       cluster_cols = F,
+                       cluster_rows = F,
+                       heatmap.colors = rev(colors(50)),
+                       main = 'RCC1 Pathways by Aggregated Identity and Cellassign')
 
 ### Find gene differences between Normal and Tumor clusters/cell types
 # Tumor 1 vs Normal
