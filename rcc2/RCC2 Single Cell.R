@@ -355,17 +355,25 @@ feature_heatmap <- DoHeatmap(rcc2,
   #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
   ggtitle('RCC2 Heatmap Tissue')
 
-# Feature plot
+### Feature plots
+# Reasign seurat identities to cellassign labels
+Idents(rcc2) <- 'cellassign'
+
+# Generate feature plot - repeat as necessary
 cancer.features <- FeaturePlot(rcc2,
-                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
+                               features = 'IGF2BP3',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
                                reduction = 'umap',
                                label = T,
                                repel = T,
                                order = T,
                                min.cutoff = 'q10',
                                max.cutoff = 'q90',
-                               split.by = 'orig.ident')
+                               split.by = 'orig.ident',
+                               cols = c('lightgray','red'))
 cancer.features
+
+# Reassign Idents to clusters
+Idents(rcc2) <- 'seurat_clusters'
 
 custom1 <- DimPlot(rcc2,
                    reduction = "umap",
@@ -490,10 +498,10 @@ aggExpr$cellassign <- gsub('.*\\.','',aggExpr$orig.cellassign)
 
 # heatmap vizualization
 colors <- colorRampPalette(c("#FF4B20", "#FFB433", "#C6FDEC", "#7AC5FF", "#0348A6"))
-dittoHeatmap(aggExpr,
+ssgsea <- dittoHeatmap(aggExpr,
              genes = NULL,
              metas = names(aggEnrich),
-             order.by = 'orig.ident',
+             order.by = 'cellassign', #cellassign
              annot.by = c('cellassign','orig.ident'),
              cluster_cols = F,
              cluster_rows = F,
@@ -559,7 +567,7 @@ t2_n.gsea <- fgsea(pathways = hm.sym,
                    maxSize = 500)
 t2_n.gsea$comp <- 'Tumor 2 v Normal'
 
-# Tumor 1 vs Normal
+# Tumor 1 vs Tumor 2
 t1_t2 <- FindMarkers(rcc2.join,
                      group.by = 'orig.ident',
                      ident.1 = 'RCC2T1',
@@ -620,35 +628,6 @@ t1.c13_c10.gsea <- fgsea(pathways = hm.sym,
                          minSize = 15,
                          maxSize = 500)
 t1.c13_c10.gsea$comp <- 'T1 Cluster 13 v Cluster 10'
-
-# Tumor 2 Cluster 13 vs Cluster 10
-t2.c13_c10 <- FindMarkers(rcc1.join,
-                          group.by = 'orig.cluster',
-                          ident.1 = 'RCC1T2.13',
-                          ident.2 = 'RCC1T2.10',
-                          min.pct = 0.25,
-                          min.diff.pct = 0.25,
-                          verbose = F)
-EnhancedVolcano(t2.c13_c10,
-                lab = rownames(t2.c13_c10),
-                x = 'avg_log2FC',
-                y = 'p_val_adj',
-                xlab = 'Up in Cluster10 <--Log2FC--> Up in Cluster13',
-                ylab = 'Adjusted P-value',
-                title = 'DEGs in Tumor 2 Tumor Cluster 13 vs Tumor Cluster 10',
-                pCutoff = 0.05,
-                FCcutoff = 1.5)
-
-t2.c13_c10$genes <- rownames(t2.c13_c10)
-t2.c13_c10.mrkrs <- t2.c13_c10 %>% arrange(desc(avg_log2FC))
-fold_changes <- t2.c13_c10.mrkrs$avg_log2FC
-names(fold_changes) <-t2.c13_c10.mrkrs$genes
-t2.c13_c10.gsea <- fgsea(pathways = hm.sym,
-                         stats = fold_changes,
-                         eps = 0.0,
-                         minSize = 15,
-                         maxSize = 500)
-t2.c13_c10.gsea$comp <- 'T2 Cluster 13 v Cluster 10'
 
 ###############################################################################|
 ### Combined FGSEA bubble plot
