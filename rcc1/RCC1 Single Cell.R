@@ -1,6 +1,9 @@
 rm(list=ls())
 
-.libPaths("/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2/")
+myPaths <- .libPaths()
+myPaths <- c(myPaths,"/home/kzayne/R/x86_64-pc-linux-gnu-library/R-4.2/")
+myPaths <- c(myPaths[length(myPaths)],myPaths[1:length(myPaths)-1])
+.libPaths(myPaths)
 
 library(patchwork)
 library(dplyr)
@@ -16,7 +19,7 @@ library(ggplotify)
 library(ggpubr)
 library(glmGamPoi)
 library(sctransform)
-library(harmony)
+#library(harmony)
 library(cowplot)
 library(DoubletFinder)
 library(Cairo)
@@ -96,8 +99,9 @@ rcc1t2.filt <- subset(rcc1t2,
 
 ###############################################################################|
 ### Run Doublet Finder
-# RCC1N doublet finder; 3987 cells -> 3975 cells
-rcc1n.filt$multRate <- 0.0032 # from 10X based on cells recovered
+#####
+# RCC1N doublet finder; 3987 cells -> 3868 cells
+rcc1n.filt$multRate <- 0.032 # from 10X based on cells recovered
 rcc1n.filt <- NormalizeData(rcc1n.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -145,8 +149,8 @@ DimPlot(rcc1n.filt,
 # Filter out doublets
 rcc1n.filt <- subset(rcc1n.filt, subset = DoubletID == 'Singlet')
 
-# RCC1T1 Doublet Finder; 8747 cells -> 8693 cells
-rcc1t1.filt$multRate <- 0.0072 # from 10X based on cells recovered
+# RCC1T1 Doublet Finder; 8747 cells -> 8207 cells
+rcc1t1.filt$multRate <- 0.072 # from 10X based on cells recovered
 rcc1t1.filt <- NormalizeData(rcc1t1.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -194,8 +198,8 @@ names(rcc1t1.filt@meta.data)[names(rcc1t1.filt@meta.data) == colDF] <- 'DoubletI
 # Filter out doublets
 rcc1t1.filt <- subset(rcc1t1.filt, subset = DoubletID == 'Singlet')
 
-# RCC9T Doublet Finder; 9431 cells -> 9372 cells
-rcc1t2.filt$multRate <- 0.0072 # from 10X based on cells recovered
+# RCC9T Doublet Finder; 9431 cells -> 8846 cells
+rcc1t2.filt$multRate <- 0.072 # from 10X based on cells recovered
 rcc1t2.filt <- NormalizeData(rcc1t2.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -242,6 +246,8 @@ names(rcc1t2.filt@meta.data)[names(rcc1t2.filt@meta.data) == colDF] <- 'DoubletI
 
 # Filter out doublets
 rcc1t2.filt <- subset(rcc1t2.filt, subset = DoubletID == 'Singlet')
+#####
+
 ###############################################################################|
 ### Combine all RCC1 objects
 # Merger normal and tissue data
@@ -295,18 +301,6 @@ orig.stim <- DimPlot(rcc1, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
-# NNMT Feature plot
-cancer.features <- FeaturePlot(rcc1,
-                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
-                               reduction = 'umap',
-                               label = T,
-                               repel = T,
-                               order = T,
-                               min.cutoff = 'q10',
-                               max.cutoff = 'q90',
-                               split.by = 'orig.ident')
-cancer.features
-
 condition <- DimPlot(rcc1, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
 condition
 clusters <- DimPlot(rcc1, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 3,order=T) + ggtitle("By UMAP Clusters")
@@ -339,6 +333,9 @@ for(j in unique(sctype_scores$cluster)){
 }
 # rcc1$ca9 <- rcc1@assays$RNA$scale.data['CA9',]
 # rcc1$cellassign <- ifelse(rcc1$cellassign == 'Proximal tubular cell' & rcc1$ca9 > 0,'Proximal Tubular cell + CA9',rcc1$cellassign)
+rcc1@meta.data$cellassign <- ifelse(rcc1@meta.data$cellassign == 'Tumor',
+                                    paste0(rcc1@meta.data$cellassign,' ',rcc1@meta.data$seurat_clusters),
+                                    rcc1@meta.data$cellassign)
 
 # Get gene list of cell types for heatmap
 gene.list <- c()
@@ -357,6 +354,19 @@ feature_heatmap <- DoHeatmap(rcc1,
                              angle = 90) +
   #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
   ggtitle('RCC1 Heatmap Tissue')
+
+# Feature plot
+cancer.features <- FeaturePlot(rcc1,
+                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
+                               reduction = 'umap',
+                               label = T,
+                               repel = T,
+                               order = T,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
+                               split.by = 'orig.ident')
+cancer.features
+
 
 custom1 <- DimPlot(rcc1,
                    reduction = "umap",
@@ -407,9 +417,6 @@ top10 <- rcc1.allMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
 top10.cids <- split(top10$gene, top10$cluster)
 
 ### Cell Percentage Plots
-rcc1@meta.data$cellassign <- ifelse(rcc1@meta.data$cellassign == 'Tumor',
-                                    paste0(rcc1@meta.data$cellassign,' ',rcc1@meta.data$seurat_clusters),
-                                    rcc1@meta.data$cellassign)
 pt <- table(rcc1$cellassign, rcc1$orig.ident)
 pt <- as.data.frame(pt)
 pt$Var1 <- as.character(pt$Var1)
