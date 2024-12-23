@@ -417,17 +417,6 @@ orig.stim <- DimPlot(rcc3, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
-# NNMT Feature plot
-cancer.features <- FeaturePlot(rcc3,
-                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
-                               reduction = 'umap',
-                               label = T,
-                               repel = T,
-                               order = T,
-                               min.cutoff = 'q10',
-                               max.cutoff = 'q90',
-                               split.by = 'orig.ident')
-cancer.features
 
 condition <- DimPlot(rcc3, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
 condition
@@ -470,7 +459,39 @@ for(i in 1:nrow(kid.mrkrs)){
 gene.list <- strsplit(gene.list,',')
 gene.list <- unlist(gene.list)  
 
-# Plot heatmap
+### Feature plot - swap out genes as needed
+# Change labels for cellassign
+Idents(rcc3) <- 'cellassign'
+
+# Plot features - Tissue + organoids
+cancer.features <- FeaturePlot(rcc3,
+                               features = 'IGF2BP3',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT','IGF2BP3'),
+                               reduction = 'umap',
+                               label = T,
+                               repel = T,
+                               order = T,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
+                               split.by = 'orig.ident',
+                               cols = c('lightgray','red'))
+cancer.features
+
+# Plot features - Tissue only
+cancer.features <- FeaturePlot(subset(rcc3,subset = orig.ident %in% c('RCC3N','RCC3T1','RCC3T2')),
+                               features = 'NDUFA4L2',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT','IGF2BP3'),
+                               reduction = 'umap',
+                               label = T,
+                               repel = T,
+                               order = T,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
+                               split.by = 'orig.ident',
+                               cols = c('lightgray','red'))
+cancer.features
+# Reset idents to clusters
+Idents(rcc3) <- 'seurat_clusters'
+
+### Plot heatmap
 feature_heatmap <- DoHeatmap(rcc3,
                              features = gene.list,#VariableFeatures(rcc3)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
                              #cells = 1:500,
