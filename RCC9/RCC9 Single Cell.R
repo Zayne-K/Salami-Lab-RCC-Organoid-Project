@@ -16,7 +16,7 @@ library(ggplotify)
 library(ggpubr)
 library(glmGamPoi)
 library(sctransform)
-library(harmony)
+# library(harmony)
 library(cowplot)
 library(DoubletFinder)
 library(Cairo)
@@ -26,7 +26,7 @@ library(doBy)
 library(EnhancedVolcano)
 library(edgeR)
 library(RColorBrewer)
-library(monocle3)
+# library(monocle3)
 # library(metap)
 # library(multtest)
 
@@ -87,7 +87,7 @@ rcc9t.filt <- subset(rcc9t,
 
 ###############################################################################|
 ### Run Doublet Finder
-# RCC9N doublet finder; 7274 cells ->  cells
+# RCC9N doublet finder; 7274 cells -> 6889 cells
 rcc9n.filt$multRate <- 0.056 # from 10X based on cells recovered
 rcc9n.filt <- NormalizeData(rcc9n.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
@@ -136,7 +136,7 @@ DimPlot(rcc9n.filt,
 # Filter out doublets
 rcc9n.filt <- subset(rcc9n.filt, subset = DoubletID == 'Singlet')
 
-# RCC9T Doublet Finder; 3916 cells ->  cells
+# RCC9T Doublet Finder; 3916 cells -> 3804 cells
 rcc9t.filt$multRate <- 0.032 # from 10X based on cells recovered
 rcc9t.filt <- NormalizeData(rcc9t.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
@@ -238,35 +238,6 @@ orig.stim <- DimPlot(rcc9, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
-# Get gene list of cell types for heatmap
-gene.list <- c()
-for(i in 1:nrow(kid.mrkrs)){
-  gene.list <- c(gene.list, kid.mrkrs[i,]$Symbol)
-}
-gene.list <- strsplit(gene.list,',')
-gene.list <- unlist(gene.list)  
-
-# Plot heatmap
-feature_heatmap <- DoHeatmap(rcc9,
-          features = gene.list,#VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
-          #cells = 1:500,
-          group.by = 'cellassign',#'seurat_clusters',
-          size = 4,
-          angle = 90) +
-  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
-  ggtitle('RCC9 Heatmap Tissue')
-
- # NNMT Feature plot
-cancer.features <- FeaturePlot(rcc9,
-                               features = 'CA9',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
-                               reduction = 'umap',
-                               label = T,
-                               repel = T,
-                               order = T,
-                               min.cutoff = 'q10',
-                               max.cutoff = 'q90',
-                               split.by = 'orig.ident')
-cancer.features
 
 condition <- DimPlot(rcc9, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
 condition
@@ -299,7 +270,46 @@ for(j in unique(sctype_scores$cluster)){
   rcc9@meta.data$cellassign[rcc9@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
 }
 # rcc9$ca9 <- rcc9@assays$RNA$scale.data['CA9',]
-# rcc9$cellassign <- ifelse(rcc9$cellassign == 'Proximal tubular cell' & rcc9$ca9 > 0,'Proximal Tubular cell + CA9',rcc9$cellassign)
+rcc9$cellassign <- ifelse(rcc9$cellassign == 'Tumor',
+                          paste0(rcc9$cellassign,' ',rcc9$seurat_clusters),rcc9$cellassign)
+
+# Get gene list of cell types for heatmap
+gene.list <- c()
+for(i in 1:nrow(kid.mrkrs)){
+  gene.list <- c(gene.list, kid.mrkrs[i,]$Symbol)
+}
+gene.list <- strsplit(gene.list,',')
+gene.list <- unlist(gene.list)  
+
+# Plot heatmap
+feature_heatmap <- DoHeatmap(rcc9,
+          features = gene.list,#VariableFeatures(rcc9)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+          #cells = 1:500,
+          group.by = 'cellassign',#'seurat_clusters',
+          size = 4,
+          angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC9 Heatmap Tissue')
+
+### Feature plots
+# Reassign Idents to cellassign
+Idents(rcc9) <- 'cellassign'
+
+# Plot Features - repeat as needed
+cancer.features <- FeaturePlot(rcc9,
+                               features = 'IGF2BP3',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
+                               reduction = 'umap',
+                               label = T,
+                               repel = T,
+                               order = T,
+                               min.cutoff = 'q10',
+                               max.cutoff = 'q90',
+                               split.by = 'orig.ident',
+                               cols = c('lightgray','red'))
+cancer.features
+
+# Assign Idents to clusters
+Idents(rcc9) <- 'seurat_clusters'
 
 custom1 <- DimPlot(rcc9,
                    reduction = "umap",
@@ -337,6 +347,54 @@ custom2 <- DimPlot(rcc9,
   ggtitle("Cellassign")
 custom2
 
+### ssGSEA workflow
+# create column for orig.ident and cellassign
+rcc9$orig.cellassign <- paste0(rcc9$orig.ident,'.',rcc9$cellassign)
+
+# Get average gene expression by orig cellassign
+aggExpr <- AggregateExpression(rcc9,
+                               group.by = 'orig.cellassign',
+                               normalization.method = 'LogNormalize',
+                               return.seurat = T,
+                               verbose = F)
+#> returns a matrix of logNormalized summed counts by group
+# geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
+# geneCluster <- as.data.frame(geneCluster)
+
+
+### run escape ssGSEA workflow
+require(escape)
+require(dittoSeq)
+# enrich count data
+aggEnrich <- enrichIt(obj = aggExpr@assays$RNA$counts,
+                      gene.sets = hm.sym,
+                      method = 'ssGSEA',
+                      groups = 1000,
+                      cores = 2,
+                      min.size = 5)
+# add enriched counts back to object
+aggExpr <- AddMetaData(aggExpr, aggEnrich)
+# met.data <- merge(colData(geneExpCluster), aggEnrich, by = "row.names", all=TRUE)
+# row.names(met.data) <- met.data$Row.names
+# met.data$Row.names <- NULL
+# colData(geneExpCluster) <- met.data
+
+# add back annotations of orig.ident and cellasign
+aggExpr$orig.ident <- gsub('\\..*','',aggExpr$orig.ident)
+aggExpr$cellassign <- gsub('.*\\.','',aggExpr$orig.cellassign)
+
+# heatmap vizualization
+colors <- colorRampPalette(c("#FF4B20", "#FFB433", "#C6FDEC", "#7AC5FF", "#0348A6"))
+ssgsea <- dittoHeatmap(aggExpr,
+                       genes = NULL,
+                       metas = names(aggEnrich),
+                       order.by = 'cellassign', #cellassign
+                       annot.by = c('cellassign','orig.ident'),
+                       cluster_cols = F,
+                       cluster_rows = F,
+                       heatmap.colors = rev(colors(50)),
+                       main = 'RCC9 Pathways by Aggregated Identity and Cellassign')
+
 ###############################################################################|
 ### Find Markers
 rcc9.join <- JoinLayers(rcc9)
@@ -349,9 +407,6 @@ top10 <- rcc9.allMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
 top10.cids <- split(top10$gene, top10$cluster)
 
 ### Cell Percentage Plots
-rcc9@meta.data$cellassign <- ifelse(rcc9@meta.data$cellassign == 'Tumor',
-                                    paste0(rcc9@meta.data$cellassign,' ',rcc9@meta.data$seurat_clusters),
-                                    rcc9@meta.data$cellassign)
 pt <- table(rcc9$cellassign, rcc9$orig.ident)
 pt <- as.data.frame(pt)
 pt$Var1 <- as.character(pt$Var1)
@@ -388,15 +443,37 @@ pct.cluster <- ggplot(pt2, aes(x = Var2, y = Freq, fill = Var1)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
   ggtitle('RCC9 Percent Cluster Composition of Samples')
 
-### Get average gene expression by seurat cluster
-geneExpCluster <- AggregateExpression(rcc9,
-                                      group.by = 'seurat_clusters',
-                                      normalization.method = 'LogNormalize',
-                                      return.seurat = T,
-                                      verbose = F)
-#> returns a matrix of logNormalized summed counts by group
-geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
-geneCluster <- as.data.frame(geneCluster)
+### Find gene differences between Normal and Tumor
+# Create column for origin tissue and cluster
+rcc9.join$orig.cluster <- paste0(rcc9$orig.ident,".",rcc9$seurat_clusters)
+# Tumor cluster 0 vs Normal cluster 6
+t_n <- FindMarkers(rcc9.join,
+                     group.by = 'orig.ident',
+                     ident.1 = 'RCC9T',
+                     ident.2 = 'RCC9N',
+                     min.pct = 0.25,
+                     min.diff.pct = 0.25,
+                     verbose = F)
+EnhancedVolcano(t_n,
+                lab = rownames(t_n),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Normal <--Log2FC--> Up in Tumor',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Tumor cells in Tumor vs Normal',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+t_n$genes <- rownames(t_n)
+
+t_n.mrkrs <- t_n %>% arrange(desc(avg_log2FC))
+fold_changes <- t_n.mrkrs$avg_log2FC
+names(fold_changes) <-t_n.mrkrs$genes
+t_n.gsea <- fgsea(pathways = hm.sym,
+                    stats = fold_changes,
+                    eps = 0.0,
+                    minSize = 15,
+                    maxSize = 500)
+t_n.gsea$comp <- 'Tumor v Normal'
 
 ### Find gene differences between Normal and Tumor clusters/cell types
 # Create column for origin tissue and cluster
@@ -551,7 +628,7 @@ tEndo_nEndo <- FindMarkers(rcc9.join,
 ###############################################################################|
 ### Combined FGSEA bubble plot
 #####
-tops <- rbind(t1_t0.gsea,t2_t0.gsea,t1_t2.gsea)
+tops <- t_n.gsea # rbind(t1_t0.gsea,t2_t0.gsea,t1_t2.gsea)
 tops <- tops[tops$padj < 0.05,]
 tops <- tops[,c(1:7,9)]
 tops <- tops[!grepl("HALLMARK",tops$pathway),]
@@ -564,9 +641,9 @@ tops$pathway <- factor(tops$pathway,levels = unique(c(tops$pathway)))
 tops$comp <- factor(tops$comp)
 
 tops$NES <- as.numeric(round(tops$NES,digits=2))
-tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Enriched in T1/T2",
-                                ifelse(tops$padj < 0.05 & tops$NES<0,"Enriched in T0/T2","Not significant")),
-                         levels = c("Enriched in T1/T2", "Enriched in T0/T2","Not significant"))
+tops$Direction <- factor(ifelse(tops$padj < 0.05 & tops$NES>0,"Enriched in Tumor",
+                                ifelse(tops$padj < 0.05 & tops$NES<0,"Enriched in Normal","Not significant")),
+                         levels = c("Enriched in Tumor", "Enriched in Normal","Not significant"))
 tops <- tops[!tops$Direction=="Not significant",]
 tops$absNES <- abs(tops$NES)
 
