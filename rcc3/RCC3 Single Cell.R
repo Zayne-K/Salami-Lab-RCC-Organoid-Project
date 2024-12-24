@@ -648,7 +648,7 @@ t2_n.gsea <- fgsea(pathways = hm.sym,
                    maxSize = 500)
 t2_n.gsea$comp <- 'Tumor 2 v Normal'
 
-# Tumor 1 vs Normal - This run finds no DEGs
+# Tumor 1 vs Tumor 2 - This run finds no DEGs
 t1_t2 <- FindMarkers(rcc3.join,
                      group.by = 'orig.ident',
                      ident.1 = 'RCC3T1',

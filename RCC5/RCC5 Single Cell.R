@@ -59,8 +59,6 @@ names(hm.sym$genesets) <- hm.sym$geneset.names
 hm.sym <- hm.sym$genesets
 names(hm.sym) <- gsub('HALLMARK_','',names(hm.sym))
 
-################################## RCC5
-#####
 ##### Load Data
 rcc5n.data <- Read10X(data.dir = '/avatar_data2/ccRCC_ssRNAseq/10716TP/RCC5N_tissue/outs/filtered_feature_bc_matrix')
 rcc5n <- CreateSeuratObject(counts = rcc5n.data, project = 'RCC5N')
@@ -114,6 +112,7 @@ rcc5t1t2_org_preTreat$multRate <- 0.016
 rcc5t1t2_org_postTreat$multRate <- 0.004
 
 # Run standard workflow and doublet finder on each sample
+#####
 samples <- c(rcc5n,rcc5t1,rcc5n_org,rcc5t1t2_org_preTreat,rcc5t1t2_org_postTreat)
 
 rcc5n <- NormalizeData(rcc5n, verbose = F) %>%
@@ -396,7 +395,7 @@ p1o | p2o
 # p1n <- DimPlot(object = rcc5, reduction = "harmony", pt.size = .1, group.by = "orig.ident")
 # p2n <- VlnPlot(object = rcc5, features = "harmony_1",group.by = "orig.ident", pt.size = .1)
 # 
-# qcPlots <- ggarrange(p1o,p1n,p2o,p2n,nrow=2,ncol=2)
+qcPlots <- ggarrange(plot1,plot2,p2o,p1o,nrow=2,ncol=2)
 ElbowPlot(rcc5)
 dimPost <- DimPlot(rcc5,
                    group.by = 'seurat_clusters',
@@ -430,16 +429,6 @@ orig.stim <- DimPlot(rcc5, reduction = "umap", label = TRUE, repel = TRUE,
   ggtitle("By seurat clusters")
 orig.stim
 
-# NNMT Feature plot
-cancer.features <- FeaturePlot(rcc5,
-                               features = c('NDUFA4L2','CA9','VEGFA','EGFR'),
-                               reduction = 'umap',
-                               label = T,
-                               repel = T,
-                               order = T,
-                               split.by = 'orig.ident')
-cancer.features
-
 condition <- DimPlot(rcc5, reduction = "umap",pt.size = 0.5,group.by = "orig.ident",label = T,repel = T,label.size = 3,order=T) + ggtitle("By Tumor Normal")
 condition
 clusters <- DimPlot(rcc5, reduction = "umap",pt.size = 0.5,group.by = "seurat_clusters",label = T,repel = T,label.size = 3,order=T) + ggtitle("By UMAP Clusters")
@@ -463,7 +452,6 @@ cL_resutls = do.call("rbind", lapply(unique(rcc5@meta.data$seurat_clusters), fun
 }))
 sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
 
-### UMAP
 rcc5@meta.data$cellassign = ""
 for(j in unique(sctype_scores$cluster)){
   cl_type = sctype_scores[sctype_scores$cluster==j,];
@@ -471,8 +459,38 @@ for(j in unique(sctype_scores$cluster)){
 }
 # rcc5$ca9 <- rcc5@assays$RNA$scale.data['CA9',]
 # rcc5$cellassign <- ifelse(rcc5$cellassign == 'Proximal tubular cell' & rcc5$ca9 > 0,'Proximal Tubular cell + CA9',rcc5$cellassign)
+rcc5@meta.data$cellassign <- ifelse(rcc5@meta.data$cellassign == 'Tumor',
+                                    paste0(rcc5@meta.data$cellassign,' ',rcc5@meta.data$seurat_clusters),
+                                    rcc5@meta.data$cellassign)
 
 rcc5$orig.cell <- paste0(rcc5$orig.ident,' ',rcc5$cellassign)
+
+# Get gene list of cell types for heatmap
+gene.list <- c()
+for(i in 1:nrow(kid.mrkrs)){
+  gene.list <- c(gene.list, kid.mrkrs[i,]$Symbol)
+}
+gene.list <- strsplit(gene.list,',')
+gene.list <- unlist(gene.list)  
+
+### Feature plots
+# Assign cellassign labels to object
+Idents(rcc5) <- 'cellassign'
+
+# Plot features - substitute genes as needed
+cancer.features <- FeaturePlot(rcc5,
+                               features = 'IGF2BP3',#c('NDUFA4L2','CA9','VEGFA','EGFR','NNMT'),
+                               reduction = 'umap',
+                               label = T,
+                               repel = T,
+                               order = T,
+                               split.by = 'orig.ident')
+cancer.features
+
+# Reassign clusters to Idents
+Idents(rcc5) <- 'seurat_clusters'
+
+### Plot UMAPS
 custom1 <- DimPlot(rcc5, reduction = "umap", label = TRUE, repel = TRUE,
                    split.by = "orig.ident",
                    group.by = 'cellassign',pt.size = 0.5,label.size = 3,order = T) +
@@ -489,7 +507,107 @@ clusters <- DimPlot(rcc5,
                     label.size = 3,
                     order=T) + 
   ggtitle("By UMAP Clusters")
+clusters
 
+cellassignClustersPlot <- clusters/custom1
+
+### Plot heatmap of genes for cellassign
+feature_heatmap <- DoHeatmap(rcc5,
+                             features = gene.list,#VariableFeatures(rcc5)[1:150],c('CA9','NDUFA4L2','NNMT','VEGFA','HIF1A'),#
+                             #cells = 1:500,
+                             group.by = 'cellassign',#'seurat_clusters',
+                             size = 4,
+                             angle = 90) +
+  #scale_y_discrete(breaks = c(10,5,5,6,8,8,5,5,6,5,4,4,6,6,10,9,5,8,4,8,5,8,9,4,5,9)) +
+  ggtitle('RCC5 Heatmap Tissue')
+
+### Cell Percentage Plots
+pt <- table(rcc5$cellassign, rcc5$orig.ident)
+pt <- as.data.frame(pt)
+pt$Var1 <- as.character(pt$Var1)
+
+colourCount = length(unique(rcc5$cellassign))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+
+pct.cellassign <- ggplot(pt, aes(x = Var2, y = Freq, fill = Var1)) +
+  theme_bw(base_size = 15) +
+  geom_col(position = "fill", width = 0.5) +
+  xlab("Sample") +
+  ylab("Proportion") +
+  scale_fill_manual(values = getPalette(colourCount)) +
+  theme(legend.title = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  ggtitle('RCC5 Percent Cellassign Composition of Samples')
+
+pt2 <- table(rcc5$seurat_clusters, rcc5$orig.ident)
+pt2 <- as.data.frame(pt2)
+pt2$Var1 <- as.character(pt2$Var1)
+
+colourCount = length(unique(rcc5$seurat_clusters))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+
+pct.cluster <- ggplot(pt2, aes(x = Var2, y = Freq, fill = Var1)) +
+  theme_bw(base_size = 15) +
+  geom_col(position = "fill", width = 0.5) +
+  xlab("Sample") +
+  ylab("Proportion") +
+  scale_fill_manual(values = getPalette(colourCount)) +
+  theme(legend.title = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  ggtitle('RCC5 Percent Cluster Composition of Samples')
+
+### ssGSEA workflow
+# create column for orig.ident and cellassign
+rcc5$orig.cellassign <- paste0(rcc5$orig.ident,'.',rcc5$cellassign)
+
+# Get average gene expression by orig cellassign
+aggExpr <- AggregateExpression(rcc5,
+                               group.by = 'orig.cellassign',
+                               normalization.method = 'LogNormalize',
+                               return.seurat = T,
+                               verbose = F)
+#> returns a matrix of logNormalized summed counts by group
+# geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
+# geneCluster <- as.data.frame(geneCluster)
+
+
+### run escape ssGSEA workflow
+require(escape)
+require(dittoSeq)
+# enrich count data
+aggEnrich <- enrichIt(obj = aggExpr@assays$RNA$counts,
+                      gene.sets = hm.sym,
+                      method = 'ssGSEA',
+                      groups = 1000,
+                      cores = 2,
+                      min.size = 5)
+# add enriched counts back to object
+aggExpr <- AddMetaData(aggExpr, aggEnrich)
+# met.data <- merge(colData(geneExpCluster), aggEnrich, by = "row.names", all=TRUE)
+# row.names(met.data) <- met.data$Row.names
+# met.data$Row.names <- NULL
+# colData(geneExpCluster) <- met.data
+
+# add back annotations of orig.ident and cellasign
+aggExpr$orig.ident <- gsub('\\..*','',aggExpr$orig.ident)
+aggExpr$cellassign <- gsub('.*\\.','',aggExpr$orig.cellassign)
+
+# heatmap vizualization
+colors <- colorRampPalette(c("#FF4B20", "#FFB433", "#C6FDEC", "#7AC5FF", "#0348A6"))
+ssgsea <- dittoHeatmap(aggExpr,
+                       genes = NULL,
+                       metas = names(aggEnrich),
+                       order.by = 'orig.ident', #cellassign
+                       annot.by = c('cellassign','orig.ident'),
+                       cluster_cols = F,
+                       cluster_rows = F,
+                       heatmap.colors = rev(colors(50)),
+                       main = 'RCC5 Pathways by Aggregated Identity and Cellassign')
+
+
+############################################## Find Markers
 # rcc5 <- PrepSCTFindMarkers(rcc5,verbose = F)
 rcc5.join <- JoinLayers(rcc5)
 rcc5.allMrkrs <- FindAllMarkers(rcc5.join,
@@ -506,6 +624,124 @@ top5 <- rcc5.allMrkrs %>% group_by(cluster) %>% top_n(-5, p_val_adj)
 top5.cids <- split(top5$gene, top5$cluster) # split to list
 
 cl.0413 <- top10[top10$cluster %in% c('0','4','13'),]
+
+### Find gene differences between Normal and Tumor clusters/cell types
+# Tumor 1 vs Normal
+t1_n <- FindMarkers(rcc5.join,
+                    group.by = 'orig.ident',
+                    ident.1 = 'RCC5T1',
+                    ident.2 = 'RCC5N',
+                    min.pct = 0.25,
+                    min.diff.pct = 0.25,
+                    verbose = F)
+EnhancedVolcano(t1_n,
+                lab = rownames(t1_n),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Normal <--Log2FC--> Up in Tumor 1',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Tumor 1 cells vs Normal cells',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+t1_n$genes <- rownames(t1_n)
+t1_n.mrkrs <- t1_n %>% arrange(desc(avg_log2FC))
+fold_changes <- t1_n.mrkrs$avg_log2FC
+names(fold_changes) <-t1_n.mrkrs$genes
+t1_n.gsea <- fgsea(pathways = hm.sym,
+                   stats = fold_changes,
+                   eps = 0.0,
+                   minSize = 15,
+                   maxSize = 500)
+t1_n.gsea$comp <- 'Tumor 1 v Normal'
+
+### Investigate differences between organoids and normal tissue
+# PreTreat vs Normal
+preO_n <- FindMarkers(rcc5.join,
+                      group.by = 'orig.ident',
+                      ident.1 = 'RCC5_org Pre_Treat',
+                      ident.2 = 'RCC5N',
+                      min.pct = 0.25,
+                      min.diff.pct = 0.25,
+                      verbose = F)
+EnhancedVolcano(preO_n,
+                lab = rownames(preO_n),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Normal <--Log2FC--> Up in PreTreat',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Pre Treat Organoid cells vs Normal tissue cells',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+preO_n$genes <- rownames(preO_n)
+preO_n.mrkrs <- preO_n %>% arrange(desc(avg_log2FC))
+fold_changes <- preO_n.mrkrs$avg_log2FC
+names(fold_changes) <-preO_n.mrkrs$genes
+preO_n.gsea <- fgsea(pathways = hm.sym,
+                     stats = fold_changes,
+                     eps = 0.0,
+                     minSize = 15,
+                     maxSize = 500)
+preO_n.gsea$comp <- 'PreTreat Org v Normal'
+
+# PostTreat organoid vs Normal
+postO_n <- FindMarkers(rcc5.join,
+                       group.by = 'orig.ident',
+                       ident.1 = 'RCC5_org Post_Treat',
+                       ident.2 = 'RCC5N',
+                       min.pct = 0.25,
+                       min.diff.pct = 0.25,
+                       verbose = F)
+EnhancedVolcano(postO_n,
+                lab = rownames(postO_n),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in Normal <--Log2FC--> Up in Post Treat',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in Post Treat Organoid cells vs Normal cells',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+postO_n$genes <- rownames(postO_n)
+
+postO_n.mrkrs <- postO_n %>% arrange(desc(avg_log2FC))
+fold_changes <- postO_n.mrkrs$avg_log2FC
+names(fold_changes) <-postO_n.mrkrs$genes
+postO_n.gsea <- fgsea(pathways = hm.sym,
+                      stats = fold_changes,
+                      eps = 0.0,
+                      minSize = 15,
+                      maxSize = 500)
+postO_n.gsea$comp <- 'PostTreat Org v Normal'
+
+# PostTreat vs PreTreat
+preO_postO <- FindMarkers(rcc5.join,
+                          group.by = 'orig.ident',
+                          ident.1 = 'RCC5_org Post_Treat',
+                          ident.2 = 'RCC5_org Pre_Treat',
+                          min.pct = 0.25,
+                          min.diff.pct = 0.25,
+                          verbose = F)
+EnhancedVolcano(preO_postO,
+                lab = rownames(preO_postO),
+                x = 'avg_log2FC',
+                y = 'p_val_adj',
+                xlab = 'Up in PreTreat <--Log2FC--> Up in PostTreat',
+                ylab = 'Adjusted P-value',
+                title = 'DEGs in PostTreat Organoid cells vs PreTreat Organoid cells',
+                pCutoff = 0.05,
+                FCcutoff = 1.5)
+
+preO_postO$genes <- rownames(preO_postO)
+preO_postO.mrkrs <- preO_postO %>% arrange(desc(avg_log2FC))
+fold_changes <- preO_postO.mrkrs$avg_log2FC
+names(fold_changes) <-preO_postO.mrkrs$genes
+preO_postO.gsea <- fgsea(pathways = hm.sym,
+                         stats = fold_changes,
+                         eps = 0.0,
+                         minSize = 15,
+                         maxSize = 500)
+preO_postO.gsea$comp <- 'PostTreat Org v PreTreat Org'
 
 ###############################################################################|
 ### Tumor cluster only analysis
