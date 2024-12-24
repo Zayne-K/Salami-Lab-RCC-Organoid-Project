@@ -87,8 +87,8 @@ rcc9t.filt <- subset(rcc9t,
 
 ###############################################################################|
 ### Run Doublet Finder
-# RCC9N doublet finder; 7274 cells -> 7232 cells
-rcc9n.filt$multRate <- 0.0061 # from 10X based on cells recovered
+# RCC9N doublet finder; 7274 cells ->  cells
+rcc9n.filt$multRate <- 0.056 # from 10X based on cells recovered
 rcc9n.filt <- NormalizeData(rcc9n.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
@@ -136,8 +136,8 @@ DimPlot(rcc9n.filt,
 # Filter out doublets
 rcc9n.filt <- subset(rcc9n.filt, subset = DoubletID == 'Singlet')
 
-# RCC9T Doublet Finder; 3916 cells -> 3903 cells
-rcc9t.filt$multRate <- 0.0039 # from 10X based on cells recovered
+# RCC9T Doublet Finder; 3916 cells ->  cells
+rcc9t.filt$multRate <- 0.032 # from 10X based on cells recovered
 rcc9t.filt <- NormalizeData(rcc9t.filt, verbose = F) %>%
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
