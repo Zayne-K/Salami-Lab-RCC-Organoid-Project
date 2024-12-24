@@ -16,7 +16,7 @@ library(ggplotify)
 library(ggpubr)
 library(glmGamPoi)
 library(sctransform)
-library(harmony)
+# library(harmony)
 library(cowplot)
 library(DoubletFinder)
 library(Cairo)
@@ -400,6 +400,9 @@ for(j in unique(sctype_scores$cluster)){
 }
 # rcc10$ca9 <- rcc10@assays$RNA$scale.data['CA9',]
 # rcc10$cellassign <- ifelse(rcc10$cellassign == 'Proximal tubular cell' & rcc10$ca9 > 0,'Proximal Tubular cell + CA9',rcc10$cellassign)
+rcc10@meta.data$cellassign <- ifelse(rcc10@meta.data$cellassign == 'Tumor',
+                                    paste0(rcc10@meta.data$cellassign,' ',rcc10@meta.data$seurat_clusters),
+                                    rcc10@meta.data$cellassign)
 
 custom1 <- DimPlot(rcc10,
                    reduction = "umap",
@@ -436,6 +439,55 @@ custom2 <- DimPlot(rcc10,
                    order = T) +
   ggtitle("Cellassign")
 custom2
+
+###############################################################################|
+### ssGSEA workflow
+# create column for orig.ident and cellassign
+rcc10$orig.cellassign <- paste0(rcc10$orig.ident,'.',rcc10$cellassign)
+
+# Get average gene expression by orig cellassign
+aggExpr <- AggregateExpression(rcc10,
+                               group.by = 'orig.cellassign',
+                               normalization.method = 'LogNormalize',
+                               return.seurat = T,
+                               verbose = F)
+#> returns a matrix of logNormalized summed counts by group
+# geneCluster <- as.data.frame(geneExpCluster@assays$RNA$scale.data)
+# geneCluster <- as.data.frame(geneCluster)
+
+
+### run escape ssGSEA workflow
+require(escape)
+require(dittoSeq)
+# enrich count data
+aggEnrich <- enrichIt(obj = aggExpr@assays$RNA$counts,
+                      gene.sets = hm.sym,
+                      method = 'ssGSEA',
+                      groups = 1000,
+                      cores = 2,
+                      min.size = 5)
+# add enriched counts back to object
+aggExpr <- AddMetaData(aggExpr, aggEnrich)
+# met.data <- merge(colData(geneExpCluster), aggEnrich, by = "row.names", all=TRUE)
+# row.names(met.data) <- met.data$Row.names
+# met.data$Row.names <- NULL
+# colData(geneExpCluster) <- met.data
+
+# add back annotations of orig.ident and cellasign
+aggExpr$orig.ident <- gsub('\\..*','',aggExpr$orig.ident)
+aggExpr$cellassign <- gsub('.*\\.','',aggExpr$orig.cellassign)
+
+# heatmap vizualization
+colors <- colorRampPalette(c("#FF4B20", "#FFB433", "#C6FDEC", "#7AC5FF", "#0348A6"))
+ssgsea <- dittoHeatmap(aggExpr,
+                       genes = NULL,
+                       metas = names(aggEnrich),
+                       order.by = 'cellassign', #cellassign
+                       annot.by = c('cellassign','orig.ident'),
+                       cluster_cols = F,
+                       cluster_rows = F,
+                       heatmap.colors = rev(colors(50)),
+                       main = 'RCC10 Pathways by Aggregated Identity and Cellassign')
 
 ###############################################################################|
 ### Agregate by tissue and cluster
@@ -481,9 +533,6 @@ top10 <- rcc10.allMrkrs %>% group_by(cluster) %>% top_n(-10, p_val_adj)
 top10.cids <- split(top10$gene, top10$cluster)
 
 ### Cell Percentage Plots
-rcc10@meta.data$cellassign <- ifelse(rcc10@meta.data$cellassign == 'Tumor',
-                                    paste0(rcc10@meta.data$cellassign,' ',rcc10@meta.data$seurat_clusters),
-                                    rcc10@meta.data$cellassign)
 pt <- table(rcc10$cellassign, rcc10$orig.ident)
 pt <- as.data.frame(pt)
 pt$Var1 <- as.character(pt$Var1)
